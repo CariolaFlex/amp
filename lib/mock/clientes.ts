@@ -1,0 +1,221 @@
+import type { ClienteMaestro, DireccionCliente, TelefonoCliente, EmailCliente } from '@/types';
+
+export const mockClientes: ClienteMaestro[] = [
+  {
+    id: 'cli-001',
+    tipo: 'persona_natural',
+    nombres: 'Juan Carlos',
+    apellidos: 'Pérez Rodríguez',
+    genero: 'masculino',
+    estadoCivil: 'Casado/a',
+    fechaNacimiento: '1990-05-24',
+    edad: 35,
+    profesion: 'Ingeniero Comercial',
+    nivelEstudio: 'Universitario',
+    nacionalidad: 'Chilena',
+    rut: '12.345.678-9',
+    nombreReferencial: 'JUAN CARLOS PÉREZ RODRÍGUEZ',
+    idCliente: '12845',
+    fechaAlta: new Date('2023-01-15'),
+    antiguedadMeses: 28,
+    tipoCliente: 'Premium',
+    recencia: 30,
+    frecuencia: 12,
+    montoTotal: 4800000,
+    satisfaccionCsat: 4.0,
+    canalPreferido: 'WhatsApp',
+    canalOrigen: 'Referido',
+    interesesCompra: ['Electrónica', 'Deportes'],
+    noDeseaPromociones: false,
+    contactoReferidoNombre: 'María González',
+    emailPrincipal: 'jperez@email.com',
+    telefonoPrincipal: '+56 9 8765 4321',
+  },
+  {
+    id: 'cli-002',
+    tipo: 'empresa',
+    nombreEmpresa: 'Minera Atacama SpA',
+    razonSocial: 'Minera Atacama SpA',
+    giro: 'Extracción de minerales metalíferos',
+    rut: '78.456.789-0',
+    nombreReferencial: 'MINERA ATACAMA SPA',
+    idCliente: '12846',
+    fechaAlta: new Date('2022-08-10'),
+    antiguedadMeses: 34,
+    tipoCliente: 'Gold',
+    recencia: 15,
+    frecuencia: 24,
+    montoTotal: 48000000,
+    satisfaccionCsat: 4.5,
+    canalPreferido: 'Email',
+    canalOrigen: 'Venta directa',
+    interesesCompra: ['Maquinaria', 'Servicios industriales'],
+    noDeseaPromociones: false,
+    emailPrincipal: 'compras@minera-atacama.cl',
+    telefonoPrincipal: '+56 55 234 5678',
+  },
+  {
+    id: 'cli-003',
+    tipo: 'persona_natural',
+    nombres: 'Valentina',
+    apellidos: 'Soto Morales',
+    genero: 'femenino',
+    estadoCivil: 'Soltero/a',
+    fechaNacimiento: '1995-11-03',
+    edad: 30,
+    profesion: 'Diseñadora',
+    nivelEstudio: 'Técnico',
+    nacionalidad: 'Chilena',
+    rut: '17.234.567-K',
+    nombreReferencial: 'VALENTINA SOTO MORALES',
+    idCliente: '12847',
+    fechaAlta: new Date('2024-03-20'),
+    antiguedadMeses: 14,
+    tipoCliente: 'Silver',
+    recencia: 45,
+    frecuencia: 5,
+    montoTotal: 980000,
+    satisfaccionCsat: 5.0,
+    canalPreferido: 'Instagram',
+    canalOrigen: 'Redes sociales',
+    interesesCompra: ['Moda', 'Hogar'],
+    noDeseaPromociones: true,
+    emailPrincipal: 'vsoto@gmail.com',
+    telefonoPrincipal: '+56 9 6543 2109',
+  },
+  {
+    id: 'cli-004',
+    tipo: 'empresa',
+    nombreEmpresa: 'Supermercados Norte Ltda.',
+    razonSocial: 'Supermercados Norte Limitada',
+    giro: 'Comercio al por menor en supermercados y almacenes',
+    rut: '79.321.654-3',
+    nombreReferencial: 'SUPERMERCADOS NORTE LIMITADA',
+    idCliente: '12848',
+    fechaAlta: new Date('2021-05-01'),
+    antiguedadMeses: 48,
+    tipoCliente: 'Gold',
+    recencia: 7,
+    frecuencia: 52,
+    montoTotal: 125000000,
+    satisfaccionCsat: 3.5,
+    canalPreferido: 'Teléfono',
+    canalOrigen: 'Visita comercial',
+    interesesCompra: ['Alimentos', 'Limpieza'],
+    noDeseaPromociones: false,
+    emailPrincipal: 'gerencia@supernorte.cl',
+    telefonoPrincipal: '+56 2 2345 6789',
+  },
+  {
+    id: 'cli-005',
+    tipo: 'persona_natural',
+    nombres: 'Roberto Ignacio',
+    apellidos: 'Espinoza Tapia',
+    genero: 'masculino',
+    estadoCivil: 'Viudo/a',
+    fechaNacimiento: '1968-07-15',
+    edad: 57,
+    profesion: 'Contador',
+    nivelEstudio: 'Universitario',
+    nacionalidad: 'Chilena',
+    rut: '8.765.432-1',
+    nombreReferencial: 'ROBERTO IGNACIO ESPINOZA TAPIA',
+    idCliente: '12849',
+    fechaAlta: new Date('2023-09-05'),
+    antiguedadMeses: 20,
+    tipoCliente: 'Bronze',
+    recencia: 90,
+    frecuencia: 3,
+    montoTotal: 450000,
+    satisfaccionCsat: 3.0,
+    canalPreferido: 'Email',
+    canalOrigen: 'Tienda física',
+    interesesCompra: ['Libros', 'Electrónica'],
+    noDeseaPromociones: false,
+    emailPrincipal: 'respinoza@contable.cl',
+    telefonoPrincipal: '+56 9 5432 1098',
+  },
+];
+
+export const mockDirecciones: DireccionCliente[] = [
+  {
+    id: 'dir-001', clienteId: 'cli-001', tipo: 'Particular',
+    calle: 'Av. Providencia', numero: '1266', departamento: 'Depto 12',
+    comuna: 'Providencia', localidad: '', region: 'Región Metropolitana de Santiago',
+    codigoPostal: '7500000', referencia: 'Frente a Metro Manuel Montt',
+    esPreferida: true, noDeseaPromociones: false, fechaAlta: new Date('2023-01-15'),
+  },
+  {
+    id: 'dir-002', clienteId: 'cli-001', tipo: 'Comercial',
+    calle: 'Arturo Prat', numero: '460', departamento: 'Piso 2',
+    comuna: 'Santiago', localidad: 'Santiago Centro', region: 'Región Metropolitana de Santiago',
+    codigoPostal: '8320000', referencia: 'Sucursal Santiago Centro',
+    esPreferida: false, noDeseaPromociones: false, fechaAlta: new Date('2023-06-01'),
+  },
+  {
+    id: 'dir-003', clienteId: 'cli-002', tipo: 'Comercial',
+    calle: 'Av. Balmaceda', numero: '2300', departamento: '',
+    comuna: 'Antofagasta', localidad: '', region: 'Región de Antofagasta',
+    codigoPostal: '1240000', referencia: 'Edificio corporativo',
+    esPreferida: true, noDeseaPromociones: false, fechaAlta: new Date('2022-08-10'),
+  },
+];
+
+export const mockTelefonos: TelefonoCliente[] = [
+  {
+    id: 'tel-001', clienteId: 'cli-001', tipo: 'Celular',
+    telefono: '+56 9 8765 4321', formaIngreso: 'manual',
+    observacion: 'Llamar solo por las mañanas',
+    esPreferido: true, noDeseaPromociones: false,
+    fechaAlta: new Date('2023-01-15'), ultimoContacto: new Date('2024-10-22'),
+  },
+  {
+    id: 'tel-002', clienteId: 'cli-001', tipo: 'Particular',
+    telefono: '+56 2 2345 6789', formaIngreso: 'web_form',
+    observacion: 'Número secundario',
+    esPreferido: false, noDeseaPromociones: false,
+    fechaAlta: new Date('2023-06-01'),
+  },
+  {
+    id: 'tel-003', clienteId: 'cli-002', tipo: 'Trabajo',
+    telefono: '+56 55 234 5678', formaIngreso: 'manual',
+    esPreferido: true, noDeseaPromociones: false,
+    fechaAlta: new Date('2022-08-10'), ultimoContacto: new Date('2024-11-05'),
+  },
+];
+
+export const mockEmails: EmailCliente[] = [
+  {
+    id: 'em-001', clienteId: 'cli-001', tipo: 'Personal',
+    email: 'jperez@email.com', esPreferido: true, publicidad: true,
+    observacion: 'Contacto principal para facturación',
+    fechaAlta: new Date('2023-01-15'), ultimoContacto: new Date('2024-05-20'),
+  },
+  {
+    id: 'em-002', clienteId: 'cli-001', tipo: 'Trabajo',
+    email: 'jperez@corporativo.cl', esPreferido: false, publicidad: false,
+    observacion: 'Solo para comunicaciones profesionales',
+    fechaAlta: new Date('2023-06-01'),
+  },
+  {
+    id: 'em-003', clienteId: 'cli-002', tipo: 'Trabajo',
+    email: 'compras@minera-atacama.cl', esPreferido: true, publicidad: true,
+    fechaAlta: new Date('2022-08-10'), ultimoContacto: new Date('2024-11-01'),
+  },
+];
+
+export function getClienteById(id: string): ClienteMaestro | undefined {
+  return mockClientes.find((c) => c.id === id);
+}
+
+export function getDireccionesByCliente(clienteId: string): DireccionCliente[] {
+  return mockDirecciones.filter((d) => d.clienteId === clienteId);
+}
+
+export function getTelefonosByCliente(clienteId: string): TelefonoCliente[] {
+  return mockTelefonos.filter((t) => t.clienteId === clienteId);
+}
+
+export function getEmailsByCliente(clienteId: string): EmailCliente[] {
+  return mockEmails.filter((e) => e.clienteId === clienteId);
+}
