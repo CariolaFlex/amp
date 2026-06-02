@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard, Users, FileText, Package, ShoppingCart,
   BookOpen, Wallet, UserCheck, ChevronLeft, ChevronRight,
-  LogOut, Building2, ContactRound, type LucideIcon,
+  LogOut, Building2, ContactRound, Network, type LucideIcon,
 } from 'lucide-react';
 
 interface NavItem {
@@ -58,6 +58,12 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Personas',
     items: [
       { label: 'RRHH', href: '/payroll', icon: UserCheck, description: 'Empleados y honorarios' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { label: 'Arquitectura', href: '/arquitectura', icon: Network, description: 'Mapa de conexiones' },
     ],
   },
 ];
