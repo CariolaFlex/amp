@@ -3,8 +3,10 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui.store';
+import { useAuthStore } from '@/store/auth.store';
 import { Button } from '@/components/ui/button';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -68,9 +70,22 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+function iniciales(nombre: string): string {
+  return nombre.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || 'U';
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { sidebarCollapsed, toggleSidebar, setMobileSidebarOpen } = useUIStore();
+  const user = useAuthStore((s) => s.getCurrentUser());
+  const contexto = useAuthStore((s) => s.contexto);
+  const logout = useAuthStore((s) => s.logout);
+
+  const handleLogout = () => {
+    logout();
+    router.replace('/login');
+  };
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === href || pathname === '/';
@@ -160,16 +175,18 @@ export function Sidebar() {
       <div className="border-t flex-shrink-0">
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center gap-2 py-3">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">CA</div>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">{iniciales(user?.nombre ?? '')}</div>
           </div>
         ) : (
           <div className="flex items-center gap-2.5 p-3">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">CA</div>
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">{iniciales(user?.nombre ?? '')}</div>
             <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium leading-snug">Carlos Ampuero</p>
-              <p className="truncate text-xs leading-tight text-muted-foreground">Owner · Los Andes SpA</p>
+              <p className="truncate text-sm font-medium leading-snug">{user?.nombre ?? 'Usuario'}</p>
+              <p className="truncate text-xs leading-tight text-muted-foreground">
+                {user?.rol ?? '—'}{contexto ? ` · ${contexto.plataformaNombre}` : ''}
+              </p>
             </div>
-            <button className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive">
+            <button onClick={handleLogout} title="Cerrar sesión" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive">
               <LogOut className="h-4 w-4" />
             </button>
           </div>

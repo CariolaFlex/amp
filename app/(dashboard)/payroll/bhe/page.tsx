@@ -6,21 +6,47 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { mockBHEs } from '@/lib/mock/empleados';
+import { useBhe, bheCol } from '@/lib/data/rrhh';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import { formatRut } from '@/lib/utils/rut';
 import { Plus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 const TASA_RETENCION = 0.1525;
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 export default function BhePage() {
+  const bhes = useBhe();
+  const [open, setOpen] = useState(false);
   const [rut, setRut] = useState('');
+  const [nombre, setNombre] = useState('');
   const [montoBruto, setMontoBruto] = useState('');
+  const [saving, setSaving] = useState(false);
   const bruto = parseInt(montoBruto.replace(/\D/g, '')) || 0;
   const retencion = Math.round(bruto * TASA_RETENCION);
   const liquido = bruto - retencion;
+
+  async function registrar() {
+    if (!nombre.trim()) { toast.error('Ingrese el nombre del prestador'); return; }
+    if (bruto <= 0) { toast.error('Ingrese el monto bruto'); return; }
+    setSaving(true);
+    const now = new Date();
+    await bheCol.create({
+      rut: rut.trim(),
+      nombre: nombre.trim(),
+      periodo: `${MESES[now.getMonth()]} ${now.getFullYear()}`,
+      montoBruto: bruto,
+      retencion,
+      montoLiquido: liquido,
+      fecha: now,
+    });
+    toast.success('BHE registrada');
+    setSaving(false);
+    setOpen(false);
+    setRut(''); setNombre(''); setMontoBruto('');
+  }
 
   return (
     <div className="space-y-4">
@@ -32,7 +58,7 @@ export default function BhePage() {
           <h1 className="text-xl font-bold">Boletas de Honorarios (BHE)</h1>
           <p className="text-sm text-muted-foreground">Retención 15.25% · Artículo 74 LIR</p>
         </div>
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="h-8 text-xs"><Plus className="h-3.5 w-3.5 mr-1" />Nueva BHE</Button>
           </DialogTrigger>
@@ -47,7 +73,7 @@ export default function BhePage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Nombre</label>
-                <Input placeholder="Nombre completo" />
+                <Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre completo" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Monto bruto</label>
@@ -75,15 +101,16 @@ export default function BhePage() {
                   </CardContent>
                 </Card>
               )}
-              <Button className="w-full">Registrar BHE</Button>
+              <Button className="w-full" onClick={registrar} disabled={saving}>{saving ? 'Registrando…' : 'Registrar BHE'}</Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
       <DataTable
-        data={mockBHEs}
+        data={bhes}
         getRowId={r => r.id}
+        emptyMessage="Sin boletas registradas. Usa «Nueva BHE»."
         columns={[
           { key: 'rut',          header: 'RUT',           render: v => <span className="font-mono text-xs">{String(v)}</span> },
           { key: 'nombre',       header: 'Prestador',     sortable: true },

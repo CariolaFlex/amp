@@ -1,22 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { mockAsientos } from '@/lib/mock/contabilidad';
+import { useAsientos } from '@/lib/data/contabilidad';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import { ArrowLeft, Download } from 'lucide-react';
 import Link from 'next/link';
 
-const cuentas = Array.from(new Set(mockAsientos.map(a => a.cuentaCodigo))).map(codigo => {
-  const asientosCuenta = mockAsientos.filter(a => a.cuentaCodigo === codigo);
-  return { codigo, nombre: asientosCuenta[0].cuentaNombre, asientos: asientosCuenta };
-});
-
 export default function MayorPage() {
-  const [cuentaActiva, setCuentaActiva] = useState(cuentas[0]?.codigo);
-  const cuenta = cuentas.find(c => c.codigo === cuentaActiva);
+  const asientos = useAsientos();
+  const cuentas = useMemo(
+    () => Array.from(new Set(asientos.map(a => a.cuentaCodigo))).map(codigo => {
+      const asientosCuenta = asientos.filter(a => a.cuentaCodigo === codigo);
+      return { codigo, nombre: asientosCuenta[0].cuentaNombre, asientos: asientosCuenta };
+    }),
+    [asientos],
+  );
+  const [cuentaActiva, setCuentaActiva] = useState<string | undefined>(undefined);
+  const cuenta = cuentas.find(c => c.codigo === (cuentaActiva ?? cuentas[0]?.codigo));
 
   let saldoAcumulado = 0;
   const asientosConSaldo = (cuenta?.asientos ?? []).map(a => {

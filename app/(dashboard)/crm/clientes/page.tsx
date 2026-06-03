@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { mockClientes } from '@/lib/mock/clientes';
+import { useClientes, nombreCliente } from '@/lib/data/clientes';
 import type { ClienteMaestro } from '@/types';
 
 function formatFecha(d: Date) {
@@ -14,18 +15,17 @@ function formatFecha(d: Date) {
 }
 
 function NombreDisplay({ c }: { c: ClienteMaestro }) {
-  if (c.tipo === 'empresa') return <span>{c.nombreEmpresa}</span>;
-  return <span>{c.nombres} {c.apellidos}</span>;
+  return <span>{nombreCliente(c)}</span>;
 }
 
 export default function ClientesPage() {
+  const router = useRouter();
   const [query, setQuery] = useState('');
+  const todos = useClientes();
 
-  const clientes = mockClientes.filter((c) => {
+  const clientes = todos.filter((c) => {
     if (!query) return true;
-    const nombre = c.tipo === 'empresa'
-      ? (c.nombreEmpresa ?? '')
-      : `${c.nombres ?? ''} ${c.apellidos ?? ''}`;
+    const nombre = nombreCliente(c);
     const rut = c.rut ?? '';
     return (
       nombre.toLowerCase().includes(query.toLowerCase()) ||
@@ -84,12 +84,23 @@ export default function ClientesPage() {
                 <tr>
                   <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                     <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                    No se encontraron clientes
+                    {todos.length === 0 ? (
+                      <div className="space-y-3">
+                        <p>Aún no hay clientes registrados.</p>
+                        <Button asChild size="sm">
+                          <Link href="/crm/clientes/nuevo">
+                            <Plus className="mr-2 h-4 w-4" />Crear primer cliente
+                          </Link>
+                        </Button>
+                      </div>
+                    ) : (
+                      'No se encontraron clientes con ese criterio'
+                    )}
                   </td>
                 </tr>
               )}
               {clientes.map((c) => (
-                <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                <tr key={c.id} onClick={() => router.push(`/crm/clientes/${c.id}`)} className="cursor-pointer border-b last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.idCliente}</td>
                   <td className="px-4 py-3 font-medium">
                     <NombreDisplay c={c} />
@@ -115,7 +126,7 @@ export default function ClientesPage() {
           </table>
         </div>
         <div className="border-t px-4 py-2 text-xs text-muted-foreground">
-          Mostrando {clientes.length} de {mockClientes.length} clientes
+          Mostrando {clientes.length} de {todos.length} clientes
         </div>
       </div>
     </div>

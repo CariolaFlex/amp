@@ -8,6 +8,18 @@ export interface Usuario {
   avatar?: string;
 }
 
+/**
+ * Credencial de usuario (capa auth). En esta fase la "password" se guarda
+ * tal cual en localStorage SÓLO para el demo local; al conectar el backend
+ * SQL Server la validación se hace contra el servidor y este campo desaparece.
+ */
+export interface CuentaUsuario extends Usuario {
+  empresaId: string;
+  password: string; // demo-only
+  activo: boolean;
+  fechaAlta: Date;
+}
+
 export interface Empresa {
   id: string;
   rut: string;
@@ -16,6 +28,31 @@ export interface Empresa {
   direccion: string;
   comuna: string;
   ciudad: string;
+}
+
+/** Plataforma = tenant/empresa operativa que el usuario puede seleccionar. */
+export interface Plataforma {
+  id: string;
+  empresaId: string;
+  nombre: string;
+  rut: string;
+}
+
+/** Centro de costo dentro de una plataforma/empresa. */
+export interface CentroCosto {
+  id: string;
+  plataformaId: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+}
+
+/** Contexto operativo activo tras el login (requisito Carlos). */
+export interface ContextoSesion {
+  plataformaId: string;
+  plataformaNombre: string;
+  centroCostoId: string;
+  centroCostoNombre: string;
 }
 
 /* ── CRM ─────────────────────────────────────────────────── */
@@ -91,6 +128,7 @@ export interface LineaDte {
   precioUnitario: number;
   descuento: number;
   total: number;
+  productoId?: string;   // si la línea proviene de un producto del inventario
 }
 
 export interface Dte {
@@ -107,6 +145,50 @@ export interface Dte {
   total: number;
   lineas: LineaDte[];
   vendedorId?: string;
+  ordenVentaId?: string;   // origen en el flujo Cotización→OV→DTE
+}
+
+/* ── Flujo de ventas: Cotización → Orden de Venta → DTE ───── */
+export type EstadoCotizacion = 'borrador' | 'enviada' | 'aprobada' | 'rechazada' | 'convertida';
+
+export interface Cotizacion {
+  id: string;
+  numero: string;          // COT-YYYY-NNN
+  clienteId?: string;
+  clienteNombre: string;
+  clienteRut: string;
+  tipoDte: TipoDte;
+  fechaEmision: Date;
+  condicionPago?: string;
+  lineas: LineaDte[];
+  neto: number;
+  iva: number;
+  total: number;
+  notas?: string;
+  estado: EstadoCotizacion;
+  vendedorId?: string;
+  vendedorNombre?: string;
+  ordenVentaId?: string;   // set al convertir
+}
+
+export type EstadoOV = 'pendiente' | 'facturada' | 'anulada';
+
+export interface OrdenVenta {
+  id: string;
+  numero: string;          // OV-YYYY-NNN
+  cotizacionId?: string;
+  clienteId?: string;
+  clienteNombre: string;
+  clienteRut: string;
+  tipoDte: TipoDte;
+  fechaEmision: Date;
+  lineas: LineaDte[];
+  neto: number;
+  iva: number;
+  total: number;
+  estado: EstadoOV;
+  dteId?: string;          // set al emitir DTE
+  vendedorNombre?: string;
 }
 
 /* ── Inventario ──────────────────────────────────────────── */
@@ -138,6 +220,22 @@ export interface MovimientoStock {
 }
 
 /* ── Compras ─────────────────────────────────────────────── */
+export interface Proveedor {
+  id: string;
+  rut: string;
+  razonSocial: string;
+  giro?: string;
+  direccion?: string;
+  comuna?: string;
+  region?: string;
+  contactoNombre?: string;
+  contactoEmail?: string;
+  contactoTelefono?: string;
+  condicionPago?: string; // contado / 30 días / 60 días
+  activo: boolean;
+  fechaAlta: Date;
+}
+
 export type EstadoOC = 'borrador' | 'aprobada' | 'recibida' | 'facturada';
 
 export interface OrdenCompra {
@@ -284,6 +382,25 @@ export interface EmailCliente {
   observacion?: string;
   fechaAlta: Date;
   ultimoContacto?: Date;
+}
+
+/* ── Bancos / Tesorería ──────────────────────────────────── */
+export interface CuentaBancaria {
+  id: string;
+  banco: string;
+  numero: string;
+  tipo: string;            // Cuenta Corriente / Vista / Ahorro
+  saldo: number;
+  ultimaConciliacion?: Date;
+}
+
+export interface MovimientoBancario {
+  id: string;
+  cuentaId: string;
+  fecha: Date;
+  descripcion: string;
+  monto: number;           // positivo = abono, negativo = cargo
+  tipo: 'abono' | 'cargo';
 }
 
 /* ── RRHH ────────────────────────────────────────────────── */

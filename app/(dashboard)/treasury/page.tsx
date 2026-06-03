@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { mockCxC, mockCxP } from '@/lib/mock/contabilidad';
+import { useCuentasCobrar, useCuentasPagar } from '@/lib/data/tesoreria';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import type { BucketAging } from '@/types';
@@ -29,12 +29,15 @@ const AGING_VARIANT: Record<BucketAging, 'success' | 'warning' | 'destructive' |
   '+90': 'destructive',
 };
 
-const agingData = (['0-30', '31-60', '61-90', '+90'] as BucketAging[]).map(bucket => ({
-  bucket,
-  monto: mockCxC.filter(c => c.aging === bucket).reduce((s, c) => s + c.saldo, 0),
-}));
-
 export default function TreasuryPage() {
+  const mockCxC = useCuentasCobrar();
+  const mockCxP = useCuentasPagar();
+
+  const agingData = (['0-30', '31-60', '61-90', '+90'] as BucketAging[]).map(bucket => ({
+    bucket,
+    monto: mockCxC.filter(c => c.aging === bucket).reduce((s, c) => s + c.saldo, 0),
+  }));
+
   const totalCxC = mockCxC.reduce((s, c) => s + c.saldo, 0);
   const totalCxP = mockCxP.reduce((s, c) => s + c.saldo, 0);
 

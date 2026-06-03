@@ -6,22 +6,31 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { mockAsientos } from '@/lib/mock/contabilidad';
+import { useAsientos } from '@/lib/data/contabilidad';
+import { NuevoAsientoDialog } from '@/components/accounting/NuevoAsientoDialog';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
-import { Download, Lock, Unlock } from 'lucide-react';
+import { Plus, Lock, Unlock } from 'lucide-react';
 import Link from 'next/link';
 
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const now = new Date();
+const periodoActual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+function labelPeriodo(value: string) {
+  const [y, m] = value.split('-');
+  return `${MESES[Number(m) - 1]} ${y}`;
+}
 const PERIODOS = [
-  { value: '2026-05', label: 'Mayo 2026', estado: 'abierto' },
-  { value: '2026-04', label: 'Abril 2026', estado: 'cerrado' },
-  { value: '2026-03', label: 'Marzo 2026', estado: 'bloqueado' },
-];
+  { value: periodoActual, label: labelPeriodo(periodoActual), estado: 'abierto' },
+  { value: '2026-05', label: 'Mayo 2026', estado: 'cerrado' },
+  { value: '2026-04', label: 'Abril 2026', estado: 'bloqueado' },
+].filter((p, i, arr) => arr.findIndex((x) => x.value === p.value) === i);
 
 export default function AccountingPage() {
-  const [periodo, setPeriodo] = useState('2026-05');
-  const asientosFiltrados = mockAsientos.filter(a => a.periodo === periodo);
-  const periodoInfo = PERIODOS.find(p => p.value === periodo);
+  const asientos = useAsientos();
+  const [periodo, setPeriodo] = useState(periodoActual);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
+  const asientosFiltrados = asientos.filter(a => a.periodo === periodo);
 
   return (
     <div className="space-y-4">
@@ -30,8 +39,10 @@ export default function AccountingPage() {
           <h1 className="text-xl font-bold">Contabilidad</h1>
           <p className="text-sm text-muted-foreground">Libro Diario, Mayor, Balance y F29</p>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs"><Download className="h-3.5 w-3.5 mr-1" />Exportar</Button>
+        <Button size="sm" className="h-8 text-xs" onClick={() => setNuevoOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" />Nuevo asiento</Button>
       </div>
+
+      <NuevoAsientoDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
 
       {/* Sub-nav */}
       <div className="flex items-center gap-1 border-b">
@@ -96,6 +107,7 @@ export default function AccountingPage() {
         getRowId={(r) => r.id}
         searchPlaceholder="Buscar en libro diario..."
         exportable
+        emptyMessage="Sin asientos en este período. Crea uno con «Nuevo asiento»."
         columns={[
           { key: 'fecha', header: 'Fecha', sortable: true, width: '100px', render: (v) => formatDate(v as Date) },
           { key: 'numero', header: 'N° Asiento', width: '80px', render: (v) => <span className="font-mono">{String(v)}</span> },

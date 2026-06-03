@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { mockOportunidades } from '@/lib/mock/oportunidades';
+import { useOportunidades, oportunidadesCol } from '@/lib/data/crm';
+import { NuevaOportunidadDialog } from '@/components/crm/NuevaOportunidadDialog';
 import { formatCLP } from '@/lib/utils/clp';
 import { daysDiff } from '@/lib/utils/dates';
 import type { Oportunidad, EtapaPipeline } from '@/types';
@@ -40,6 +41,7 @@ function getRottingVariant(op: Oportunidad): 'ok' | 'warn' | 'crit' {
 
 function DealCard({ op, overlay = false }: { op: Oportunidad; overlay?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: op.id });
+  const router = useRouter();
   const rotting = getRottingVariant(op);
   const dias = daysDiff(op.ultimaActividad);
 
@@ -49,8 +51,9 @@ function DealCard({ op, overlay = false }: { op: Oportunidad; overlay?: boolean 
     <div
       ref={setNodeRef}
       style={style}
+      onClick={() => { if (!overlay) router.push(`/crm/oportunidad/${op.id}`); }}
       className={cn(
-        'rounded-lg border bg-card p-3 space-y-2 transition-shadow',
+        'rounded-lg border bg-card p-3 space-y-2 transition-shadow cursor-pointer',
         isDragging && 'opacity-40',
         overlay && 'shadow-2xl rotate-1',
         rotting === 'warn' && 'border-warning/50',
@@ -59,7 +62,7 @@ function DealCard({ op, overlay = false }: { op: Oportunidad; overlay?: boolean 
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium leading-snug flex-1 min-w-0">{op.titulo}</p>
-        <button {...attributes} {...listeners} className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 mt-0.5">
+        <button {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 mt-0.5">
           <GripVertical className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -102,9 +105,10 @@ function KanbanColumn({ etapa, ops }: { etapa: typeof ETAPAS[number]; ops: Oport
 
 export default function CrmPage() {
   const pathname = usePathname();
-  const [ops, setOps] = useState<Oportunidad[]>(mockOportunidades);
+  const ops = useOportunidades();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<'kanban' | 'lista'>('kanban');
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -120,7 +124,7 @@ export default function CrmPage() {
     const targetOp = ops.find(o => o.id === over.id);
     if (!sourceOp || !targetOp) { setActiveId(null); return; }
     if (sourceOp.etapa !== targetOp.etapa) {
-      setOps(prev => prev.map(o => o.id === active.id ? { ...o, etapa: targetOp.etapa, ultimaActividad: new Date() } : o));
+      void oportunidadesCol.update(sourceOp.id, { etapa: targetOp.etapa, ultimaActividad: new Date() });
     }
     setActiveId(null);
   }
@@ -143,9 +147,11 @@ export default function CrmPage() {
               <LayoutList className="h-3.5 w-3.5" />Lista
             </button>
           </div>
-          <Button size="sm" className="h-8 text-xs"><Plus className="h-3.5 w-3.5 mr-1" />Nueva oportunidad</Button>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" />Nueva oportunidad</Button>
         </div>
       </div>
+
+      <NuevaOportunidadDialog open={dialogOpen} onOpenChange={setDialogOpen} />
 
       {/* Sub-nav */}
       <div className="flex items-center gap-1 border-b flex-shrink-0">
@@ -162,6 +168,12 @@ export default function CrmPage() {
           </Link>
         );})}
       </div>
+
+      {ops.length === 0 && view === 'kanban' && (
+        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          Aún no hay oportunidades. Crea la primera con <span className="font-medium text-foreground">Nueva oportunidad</span>.
+        </div>
+      )}
 
       {view === 'kanban' ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

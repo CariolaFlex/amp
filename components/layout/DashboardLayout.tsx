@@ -3,6 +3,7 @@
 import React from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { AuthGuard } from './AuthGuard';
 import { CommandSearch } from '@/components/shared/CommandSearch';
 import { useUIStore } from '@/store/ui.store';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { sidebarMobileOpen, setMobileSidebarOpen } = useUIStore();
 
   return (
+    <AuthGuard>
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile overlay */}
       {sidebarMobileOpen && (
@@ -40,5 +42,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <CommandSearch />
     </div>
+    </AuthGuard>
   );
 }

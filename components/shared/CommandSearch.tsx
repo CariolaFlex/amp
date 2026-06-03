@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Command } from 'cmdk';
 import { useRouter } from 'next/navigation';
-import { mockOportunidades } from '@/lib/mock/oportunidades';
-import { mockDtes } from '@/lib/mock/dtes';
-import { mockProductos } from '@/lib/mock/productos';
-import { mockClientes } from '@/lib/mock/clientes';
+import { useClientes, nombreCliente } from '@/lib/data/clientes';
+import { useOportunidades } from '@/lib/data/crm';
+import { useProductos } from '@/lib/data/inventory';
+import { useDtes } from '@/lib/data/ventas';
 import { formatCLP } from '@/lib/utils/clp';
 import {
   Search, LayoutDashboard, Users, FileText, Package,
@@ -37,6 +37,10 @@ export function CommandSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const router = useRouter();
+  const clientes = useClientes();
+  const oportunidades = useOportunidades();
+  const productos = useProductos();
+  const dtes = useDtes();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -60,24 +64,21 @@ export function CommandSearch() {
 
   const navFiltrada = NAVEGACION.filter(n => !q || n.label.toLowerCase().includes(q));
 
-  const opsFiltradas = mockOportunidades.filter(o =>
+  const opsFiltradas = oportunidades.filter(o =>
     !q || o.titulo.toLowerCase().includes(q) || o.clienteNombre.toLowerCase().includes(q) || o.clienteRut.includes(q)
   ).slice(0, 4);
 
-  const dtesFiltrados = mockDtes.filter(d =>
+  const dtesFiltrados = dtes.filter(d =>
     !q || String(d.folio).includes(q) || d.clienteNombre.toLowerCase().includes(q) || d.clienteRut.includes(q)
   ).slice(0, 4);
 
-  const productosFiltrados = mockProductos.filter(p =>
+  const productosFiltrados = productos.filter(p =>
     !q || p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
   ).slice(0, 3);
 
-  const clientesFiltrados = mockClientes.filter((c) => {
+  const clientesFiltrados = clientes.filter((c) => {
     if (!q) return false;
-    const nombre = c.tipo === 'empresa'
-      ? (c.nombreEmpresa ?? '')
-      : `${c.nombres ?? ''} ${c.apellidos ?? ''}`;
-    return nombre.toLowerCase().includes(q) || (c.rut ?? '').includes(q);
+    return nombreCliente(c).toLowerCase().includes(q) || (c.rut ?? '').includes(q);
   }).slice(0, 4);
 
   if (!open) return null;
@@ -134,9 +135,7 @@ export function CommandSearch() {
             {clientesFiltrados.length > 0 && (
               <Command.Group heading={<span className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Clientes</span>}>
                 {clientesFiltrados.map(c => {
-                  const nombre = c.tipo === 'empresa'
-                    ? c.nombreEmpresa
-                    : `${c.nombres ?? ''} ${c.apellidos ?? ''}`.trim();
+                  const nombre = nombreCliente(c);
                   return (
                     <Command.Item
                       key={c.id}

@@ -1,25 +1,22 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCLP } from '@/lib/utils/clp';
-import { formatRut } from '@/lib/utils/rut';
-import { mockProductos } from '@/lib/mock/productos';
-import { Plus, Trash2, ArrowLeft, Eye, Send } from 'lucide-react';
+import { useProductos } from '@/lib/data/inventory';
+import { useClientes, nombreCliente } from '@/lib/data/clientes';
+import { cotizacionesCol, calcTotales, aplicaIva, siguienteNumeroCotizacion } from '@/lib/data/ventas';
+import { useAuthStore } from '@/store/auth.store';
+import { Plus, Trash2, ArrowLeft, Save, Send } from 'lucide-react';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
-
-interface Linea {
-  id: string;
-  descripcion: string;
-  cantidad: number;
-  precioUnitario: number;
-  descuento: number;
-}
+import { toast } from 'sonner';
+import { genId } from '@/lib/data/collection';
+import type { LineaDte, TipoDte, EstadoCotizacion } from '@/types';
 
 const TIPOS_DTE = [
   { value: '33', label: 'Factura Afecta (33)' },
@@ -28,99 +25,114 @@ const TIPOS_DTE = [
   { value: '61', label: 'Nota de Crédito (61)' },
 ];
 
-const initialLineas: Linea[] = [
-  { id: '1', descripcion: 'Servicio de excavación', cantidad: 1, precioUnitario: 15126050, descuento: 0 },
-];
+interface LineaEdit { id: string; descripcion: string; cantidad: number; precioUnitario: number; descuento: number; productoId?: string; }
 
-export default function NuevaDtePage() {
+const lineaVacia = (): LineaEdit => ({ id: genId(), descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0 });
+
+function toLineaDte(l: LineaEdit): LineaDte {
+  const total = Math.round(l.cantidad * l.precioUnitario * (1 - l.descuento / 100));
+  return { id: l.id, descripcion: l.descripcion, cantidad: l.cantidad, precioUnitario: l.precioUnitario, descuento: l.descuento, total, productoId: l.productoId };
+}
+
+export default function NuevaCotizacionPage() {
+  const router = useRouter();
+  const clientes = useClientes();
+  const productos = useProductos();
+  const user = useAuthStore((s) => s.getCurrentUser());
+
   const [tipoDte, setTipoDte] = useState('33');
-  const [rutCliente, setRutCliente] = useState('78.456.789-0');
-  const [lineas, setLineas] = useState<Linea[]>(initialLineas);
+  const [clienteId, setClienteId] = useState('');
+  const [clienteManual, setClienteManual] = useState({ nombre: '', rut: '' });
+  const [condicionPago, setCondicionPago] = useState('30');
+  const [lineas, setLineas] = useState<LineaEdit[]>([lineaVacia()]);
   const [notas, setNotas] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const neto = lineas.reduce((s, l) => s + (l.cantidad * l.precioUnitario * (1 - l.descuento / 100)), 0);
-  const iva = tipoDte === '33' || tipoDte === '39' ? Math.round(neto * 0.19) : 0;
-  const total = neto + iva;
+  const tipoNum = Number(tipoDte) as TipoDte;
+  const lineasDte = lineas.map(toLineaDte);
+  const { neto, iva, total } = calcTotales(lineasDte, tipoNum);
 
-  const addLinea = () => {
-    setLineas(prev => [...prev, { id: Date.now().toString(), descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0 }]);
-  };
+  const cli = clientes.find((c) => c.id === clienteId);
 
-  const removeLinea = (id: string) => setLineas(prev => prev.filter(l => l.id !== id));
+  // Prefill desde ?clienteRut= (al venir desde la ficha/CRM de un cliente)
+  React.useEffect(() => {
+    if (clienteId || clientes.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const rut = params.get('clienteRut');
+    if (rut) {
+      const match = clientes.find((c) => c.rut === rut);
+      if (match) setClienteId(match.id);
+    }
+  }, [clientes, clienteId]);
 
-  const updateLinea = (id: string, field: keyof Linea, value: string | number) => {
-    setLineas(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l));
-  };
+  const addLinea = () => setLineas((p) => [...p, lineaVacia()]);
+  const removeLinea = (id: string) => setLineas((p) => p.filter((l) => l.id !== id));
+  const updateLinea = (id: string, field: keyof LineaEdit, value: string | number) =>
+    setLineas((p) => p.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
+
+  async function guardar(estado: EstadoCotizacion) {
+    const clienteNombre = cli ? nombreCliente(cli) : clienteManual.nombre.trim();
+    const clienteRut = cli ? (cli.rut ?? '') : clienteManual.rut.trim();
+    if (!clienteNombre) { toast.error('Seleccione o ingrese el cliente'); return; }
+    if (lineasDte.every((l) => !l.descripcion.trim())) { toast.error('Agregue al menos una línea con descripción'); return; }
+
+    setSaving(true);
+    await cotizacionesCol.create({
+      numero: await siguienteNumeroCotizacion(),
+      clienteId: cli?.id,
+      clienteNombre,
+      clienteRut,
+      tipoDte: tipoNum,
+      fechaEmision: new Date(),
+      condicionPago,
+      lineas: lineasDte.filter((l) => l.descripcion.trim()),
+      neto, iva, total,
+      notas: notas.trim() || undefined,
+      estado,
+      vendedorId: user?.id,
+      vendedorNombre: user?.nombre,
+    });
+    toast.success(estado === 'enviada' ? 'Cotización creada y enviada' : 'Cotización guardada como borrador');
+    setSaving(false);
+    router.push('/dte/cotizaciones');
+  }
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="max-w-4xl space-y-4">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-          <Link href="/dte"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href="/dte/cotizaciones"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
-          <h1 className="text-xl font-bold">Nueva Cotización / DTE</h1>
+          <h1 className="text-xl font-bold">Nueva Cotización</h1>
           <p className="text-sm text-muted-foreground">Flujo: Cotización → Orden de Venta → DTE</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs">
-            <Eye className="h-3.5 w-3.5 mr-1" />Vista previa PDF
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => guardar('borrador')} disabled={saving}>
+            <Save className="mr-1 h-3.5 w-3.5" />Guardar borrador
           </Button>
-          <Button size="sm" className="h-8 text-xs">
-            <Send className="h-3.5 w-3.5 mr-1" />Emitir al SII
+          <Button size="sm" className="h-8 text-xs" onClick={() => guardar('enviada')} disabled={saving}>
+            <Send className="mr-1 h-3.5 w-3.5" />Guardar y enviar
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Formulario principal */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Encabezado DTE */}
+        <div className="space-y-4 lg:col-span-2">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Encabezado</CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Encabezado</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Tipo de documento</label>
                   <Select value={tipoDte} onValueChange={setTipoDte}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_DTE.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                    </SelectContent>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>{TIPOS_DTE.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Fecha de emisión</label>
-                  <Input type="date" defaultValue="2026-06-01" className="h-9 text-sm" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">RUT cliente</label>
-                  <Input
-                    value={rutCliente}
-                    onChange={e => setRutCliente(formatRut(e.target.value))}
-                    placeholder="78.456.789-0"
-                    className="font-mono h-9 text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Razón social</label>
-                  <Input defaultValue="Minera Atacama SA" className="h-9 text-sm" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Fecha vencimiento</label>
-                  <Input type="date" defaultValue="2026-07-01" className="h-9 text-sm" />
-                </div>
-                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Condición de pago</label>
-                  <Select defaultValue="30">
+                  <Select value={condicionPago} onValueChange={setCondicionPago}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">Contado</SelectItem>
@@ -131,23 +143,35 @@ export default function NuevaDtePage() {
                   </Select>
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Cliente</label>
+                {clientes.length > 0 ? (
+                  <Select value={clienteId} onValueChange={setClienteId}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar cliente" /></SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((c) => <SelectItem key={c.id} value={c.id}>{nombreCliente(c)}{c.rut ? ` · ${c.rut}` : ''}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input value={clienteManual.nombre} onChange={(e) => setClienteManual((s) => ({ ...s, nombre: e.target.value }))} placeholder="Nombre cliente" className="h-9 text-sm" />
+                    <Input value={clienteManual.rut} onChange={(e) => setClienteManual((s) => ({ ...s, rut: e.target.value }))} placeholder="RUT" className="h-9 font-mono text-sm" />
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Líneas */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold">Líneas de detalle</CardTitle>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addLinea}>
-                  <Plus className="h-3.5 w-3.5 mr-1" />Agregar línea
-                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addLinea}><Plus className="mr-1 h-3.5 w-3.5" />Agregar línea</Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {/* Header */}
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
+                <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium text-muted-foreground">
                   <span className="col-span-5">Descripción</span>
                   <span className="col-span-2 text-right">Cantidad</span>
                   <span className="col-span-2 text-right">P. Unitario</span>
@@ -155,55 +179,17 @@ export default function NuevaDtePage() {
                   <span className="col-span-1 text-right">Total</span>
                   <span className="col-span-1" />
                 </div>
-
                 {lineas.map((linea) => {
-                  const subtotal = linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100);
+                  const subtotal = Math.round(linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100));
                   return (
-                    <div key={linea.id} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <Input
-                          value={linea.descripcion}
-                          onChange={e => updateLinea(linea.id, 'descripcion', e.target.value)}
-                          placeholder="Descripción del servicio o producto"
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Input
-                          type="number"
-                          value={linea.cantidad}
-                          onChange={e => updateLinea(linea.id, 'cantidad', Number(e.target.value))}
-                          className="h-8 text-xs text-right"
-                          min={1}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Input
-                          type="number"
-                          value={linea.precioUnitario}
-                          onChange={e => updateLinea(linea.id, 'precioUnitario', Number(e.target.value))}
-                          className="h-8 text-xs text-right"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <Input
-                          type="number"
-                          value={linea.descuento}
-                          onChange={e => updateLinea(linea.id, 'descuento', Number(e.target.value))}
-                          className="h-8 text-xs text-right"
-                          min={0} max={100}
-                        />
-                      </div>
-                      <div className="col-span-1 text-right text-xs font-medium">
-                        {formatCLP(subtotal)}
-                      </div>
+                    <div key={linea.id} className="grid grid-cols-12 items-center gap-2">
+                      <div className="col-span-5"><Input value={linea.descripcion} onChange={(e) => updateLinea(linea.id, 'descripcion', e.target.value)} placeholder="Descripción" className="h-8 text-xs" /></div>
+                      <div className="col-span-2"><Input type="number" value={linea.cantidad} onChange={(e) => updateLinea(linea.id, 'cantidad', Number(e.target.value))} className="h-8 text-right text-xs" min={1} /></div>
+                      <div className="col-span-2"><Input type="number" value={linea.precioUnitario} onChange={(e) => updateLinea(linea.id, 'precioUnitario', Number(e.target.value))} className="h-8 text-right text-xs" /></div>
+                      <div className="col-span-1"><Input type="number" value={linea.descuento} onChange={(e) => updateLinea(linea.id, 'descuento', Number(e.target.value))} className="h-8 text-right text-xs" min={0} max={100} /></div>
+                      <div className="col-span-1 text-right text-xs font-medium">{formatCLP(subtotal)}</div>
                       <div className="col-span-1 flex justify-end">
-                        <button
-                          onClick={() => removeLinea(linea.id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <button onClick={() => removeLinea(linea.id)} className="text-muted-foreground transition-colors hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
                   );
@@ -212,102 +198,51 @@ export default function NuevaDtePage() {
             </CardContent>
           </Card>
 
-          {/* Notas */}
           <Card>
             <CardContent className="p-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Notas / Observaciones</label>
-                <textarea
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  placeholder="Condiciones especiales, referencias de proyecto, etc."
-                  rows={3}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
-                />
+                <textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Condiciones especiales, referencias de proyecto, etc." rows={3} className="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Resumen */}
         <div className="space-y-4">
           <Card className="sticky top-20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Resumen</CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Resumen</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Neto</span>
-                  <span className="font-medium">{formatCLP(neto)}</span>
-                </div>
-                {tipoDte === '33' || tipoDte === '39' ? (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">IVA 19%</span>
-                    <span className="font-medium">{formatCLP(iva)}</span>
-                  </div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Neto</span><span className="font-medium">{formatCLP(neto)}</span></div>
+                {aplicaIva(tipoNum) ? (
+                  <div className="flex justify-between"><span className="text-muted-foreground">IVA 19%</span><span className="font-medium">{formatCLP(iva)}</span></div>
                 ) : (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Exento</span>
-                    <Badge variant="muted" className="text-[10px]">Sin IVA</Badge>
-                  </div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Exento</span><Badge variant="muted" className="text-[10px]">Sin IVA</Badge></div>
                 )}
-                <div className="flex justify-between border-t pt-2">
-                  <span className="font-bold">TOTAL</span>
-                  <span className="font-bold text-lg text-primary">{formatCLP(total)}</span>
-                </div>
+                <div className="flex justify-between border-t pt-2"><span className="font-bold">TOTAL</span><span className="text-lg font-bold text-primary">{formatCLP(total)}</span></div>
               </div>
-
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Tipo</span>
-                  <Badge variant="secondary">{TIPOS_DTE.find(t => t.value === tipoDte)?.label}</Badge>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Folio (próximo)</span>
-                  <span className="font-mono font-medium">#1030</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Ambiente</span>
-                  <Badge variant="warning">Certificación</Badge>
-                </div>
-              </div>
-
-              <div className="pt-2 space-y-2">
-                <Button className="w-full h-9 text-sm">
-                  <Send className="h-4 w-4 mr-1.5" />Emitir al SII
-                </Button>
-                <Button variant="outline" className="w-full h-9 text-sm">
-                  Guardar como borrador
-                </Button>
+              <div className="space-y-2 pt-2">
+                <Button className="h-9 w-full text-sm" onClick={() => guardar('enviada')} disabled={saving}><Send className="mr-1.5 h-4 w-4" />Guardar y enviar</Button>
+                <Button variant="outline" className="h-9 w-full text-sm" onClick={() => guardar('borrador')} disabled={saving}>Guardar como borrador</Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Productos rápidos */}
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold text-muted-foreground">AGREGAR PRODUCTO</CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-xs font-semibold text-muted-foreground">AGREGAR PRODUCTO</CardTitle></CardHeader>
             <CardContent className="p-3 pt-0">
-              <div className="space-y-1 max-h-48 overflow-y-auto">
-                {mockProductos.slice(0, 6).map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setLineas(prev => [...prev, {
-                      id: Date.now().toString(),
-                      descripcion: p.nombre,
-                      cantidad: 1,
-                      precioUnitario: p.precioVenta,
-                      descuento: 0,
-                    }])}
-                    className="w-full flex items-center justify-between rounded-md px-2 py-1.5 text-xs hover:bg-muted transition-colors text-left"
-                  >
-                    <span className="truncate">{p.nombre}</span>
-                    <span className="ml-2 flex-shrink-0 text-primary font-medium">{formatCLP(p.precioVenta)}</span>
-                  </button>
-                ))}
-              </div>
+              {productos.length === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">No hay productos. Créalos en Inventario.</p>
+              ) : (
+                <div className="max-h-48 space-y-1 overflow-y-auto">
+                  {productos.slice(0, 12).map((p) => (
+                    <button key={p.id} onClick={() => setLineas((prev) => [...prev, { id: genId(), descripcion: p.nombre, cantidad: 1, precioUnitario: p.precioVenta, descuento: 0, productoId: p.id }])} className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted">
+                      <span className="truncate">{p.nombre}</span>
+                      <span className="ml-2 flex-shrink-0 font-medium text-primary">{formatCLP(p.precioVenta)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

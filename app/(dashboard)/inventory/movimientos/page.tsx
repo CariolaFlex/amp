@@ -3,7 +3,7 @@
 import React from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
-import { mockMovimientos } from '@/lib/mock/productos';
+import { useMovimientos } from '@/lib/data/inventory';
 import { formatDate } from '@/lib/utils/dates';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -17,6 +17,7 @@ const TIPO_CONFIG = {
 };
 
 export default function MovimientosPage() {
+  const movimientos = useMovimientos();
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -29,10 +30,11 @@ export default function MovimientosPage() {
         </div>
       </div>
       <DataTable
-        data={mockMovimientos}
+        data={movimientos}
         getRowId={(r) => r.id}
         searchPlaceholder="Buscar movimientos..."
         exportable
+        emptyMessage="Sin movimientos de stock todavía."
         columns={[
           { key: 'fecha', header: 'Fecha', sortable: true, render: (v) => formatDate(v as Date) },
           { key: 'productoNombre', header: 'Producto', sortable: true },

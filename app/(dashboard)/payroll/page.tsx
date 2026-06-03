@@ -1,15 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { mockEmpleados, mockBHEs } from '@/lib/mock/empleados';
+import { useEmpleados, useBhe } from '@/lib/data/rrhh';
+import { NuevoEmpleadoDialog } from '@/components/payroll/NuevoEmpleadoDialog';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
-import { Upload, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import Link from 'next/link';
 
 const CONTRATO_LABEL = {
   indefinido: 'Indefinido',
@@ -18,6 +20,10 @@ const CONTRATO_LABEL = {
 } as const;
 
 export default function PayrollPage() {
+  const empleados = useEmpleados();
+  const bhes = useBhe();
+  const [nuevoOpen, setNuevoOpen] = useState(false);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -26,10 +32,12 @@ export default function PayrollPage() {
           <p className="text-sm text-muted-foreground">Empleados, liquidaciones y boletas de honorarios</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs"><Upload className="h-3.5 w-3.5 mr-1" />Importar Buk/Talana</Button>
-          <Button size="sm" className="h-8 text-xs"><Plus className="h-3.5 w-3.5 mr-1" />Nuevo empleado</Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" asChild><Link href="/payroll/bhe"><Plus className="h-3.5 w-3.5 mr-1" />Nueva BHE</Link></Button>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setNuevoOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" />Nuevo empleado</Button>
         </div>
       </div>
+
+      <NuevoEmpleadoDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
 
       {/* Estado nómina */}
       <div className="grid grid-cols-3 gap-3">
@@ -42,13 +50,13 @@ export default function PayrollPage() {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Empleados activos</p>
-            <p className="text-2xl font-bold">{mockEmpleados.length}</p>
+            <p className="text-2xl font-bold">{empleados.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Honorarios Mayo</p>
-            <p className="text-2xl font-bold">{mockBHEs.length}</p>
+            <p className="text-xs text-muted-foreground">Boletas de honorarios</p>
+            <p className="text-2xl font-bold">{bhes.length}</p>
           </CardContent>
         </Card>
       </div>
@@ -61,9 +69,10 @@ export default function PayrollPage() {
 
         <TabsContent value="empleados">
           <DataTable
-            data={mockEmpleados}
+            data={empleados}
             getRowId={(r) => r.id}
             searchPlaceholder="Buscar empleados..."
+            emptyMessage="Aún no hay empleados. Crea el primero con «Nuevo empleado»."
             columns={[
               { key: 'rut', header: 'RUT', render: (v) => <span className="font-mono text-xs">{String(v)}</span> },
               { key: 'nombre', header: 'Nombre', sortable: true },
@@ -78,8 +87,9 @@ export default function PayrollPage() {
 
         <TabsContent value="bhe">
           <DataTable
-            data={mockBHEs}
+            data={bhes}
             getRowId={(r) => r.id}
+            emptyMessage="Sin boletas de honorarios. Regístralas en «Nueva BHE»."
             columns={[
               { key: 'rut', header: 'RUT', render: (v) => <span className="font-mono text-xs">{String(v)}</span> },
               { key: 'nombre', header: 'Nombre', sortable: true },

@@ -4,12 +4,14 @@ import React, { useState } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockDtes } from '@/lib/mock/dtes';
+import { VentasNav } from '@/components/dte/VentasNav';
+import { useDtes } from '@/lib/data/ventas';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import type { EstadoDte, TipoDte } from '@/types';
 import { Plus, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 const TIPO_LABEL: Record<TipoDte, string> = {
@@ -32,24 +34,30 @@ const ESTADO_CONFIG: Record<EstadoDte, { label: string; variant: 'success' | 'de
 };
 
 export default function DtePage() {
+  const dtes = useDtes();
+  const router = useRouter();
   const [filter, setFilter] = useState<'todos' | EstadoDte>('todos');
 
-  const filteredDtes = filter === 'todos' ? mockDtes : mockDtes.filter(d => d.estado === filter);
+  const filteredDtes = filter === 'todos' ? dtes : dtes.filter(d => d.estado === filter);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Cotizaciones y DTE</h1>
+          <h1 className="text-xl font-bold">DTEs Emitidos</h1>
           <p className="text-sm text-muted-foreground">Documentos tributarios electrónicos emitidos</p>
         </div>
-        <Button size="sm" className="h-8 text-xs"><Plus className="h-3.5 w-3.5 mr-1" />Nueva cotización</Button>
+        <Button size="sm" className="h-8 text-xs" asChild>
+          <Link href="/dte/nueva"><Plus className="h-3.5 w-3.5 mr-1" />Nueva cotización</Link>
+        </Button>
       </div>
+
+      <VentasNav />
 
       {/* Resumen rápido */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {(['aceptado', 'pendiente', 'rechazado', 'pagado'] as EstadoDte[]).map(estado => {
-          const count = mockDtes.filter(d => d.estado === estado).length;
+          const count = dtes.filter(d => d.estado === estado).length;
           const cfg = ESTADO_CONFIG[estado];
           return (
             <button key={estado} onClick={() => setFilter(estado)} className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted ${filter === estado ? 'bg-muted border-primary' : ''}`}>
@@ -74,6 +82,8 @@ export default function DtePage() {
         getRowId={(r) => r.id}
         searchPlaceholder="Buscar por cliente, folio..."
         exportable
+        onRowClick={(row) => router.push(`/dte/${row.id}`)}
+        emptyMessage="Aún no hay DTEs emitidos. Se generan al emitir una Orden de Venta."
         columns={[
           { key: 'folio', header: 'Folio', sortable: true, width: '80px', render: (v) => <span className="font-mono font-medium">#{String(v)}</span> },
           { key: 'tipo', header: 'Tipo', render: (v) => <span className="text-xs">{TIPO_LABEL[v as TipoDte]}</span> },
@@ -92,11 +102,7 @@ export default function DtePage() {
         ]}
         actions={(row) => (
           <>
-            <DropdownMenuItem className="text-xs"><FileText className="h-3.5 w-3.5 mr-2" />Ver PDF</DropdownMenuItem>
-            {row.estado === 'aceptado' && (
-              <DropdownMenuItem className="text-xs">Emitir Nota de Crédito</DropdownMenuItem>
-            )}
-            <DropdownMenuItem className="text-xs">Ver detalle</DropdownMenuItem>
+            <DropdownMenuItem className="text-xs" onClick={() => router.push(`/dte/${row.id}`)}><FileText className="h-3.5 w-3.5 mr-2" />Ver detalle</DropdownMenuItem>
           </>
         )}
       />
