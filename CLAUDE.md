@@ -2,7 +2,7 @@
 
 # LEER PRIMERO: C:\AMP\MASTER_LOG.md
 > Ese archivo contiene el estado completo del proyecto, rutas implementadas, pendientes y log de sesiones.
-> Es la fuente de verdad. Leerlo antes de cualquier tarea.
+> Es la fuente de verdad. Leerlo antes de cualquier tarea siempre.
 
 ## Resumen rápido
 - Frontend: `C:\AMP\fronted\` — Next.js 16 + Tailwind v4
