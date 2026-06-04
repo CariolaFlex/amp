@@ -10,7 +10,8 @@ import { useAsientos } from '@/lib/data/contabilidad';
 import { NuevoAsientoDialog } from '@/components/accounting/NuevoAsientoDialog';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
-import { Plus, Lock, Unlock } from 'lucide-react';
+import { Plus, Lock, Unlock, Download } from 'lucide-react';
+import { exportarLibroDiarioExcel } from '@/lib/utils/export-excel';
 import Link from 'next/link';
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -39,7 +40,16 @@ export default function AccountingPage() {
           <h1 className="text-xl font-bold">Contabilidad</h1>
           <p className="text-sm text-muted-foreground">Libro Diario, Mayor, Balance y F29</p>
         </div>
-        <Button size="sm" className="h-8 text-xs" onClick={() => setNuevoOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" />Nuevo asiento</Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline" size="sm" className="h-8 text-xs"
+            onClick={() => exportarLibroDiarioExcel({ periodo, asientos: asientosFiltrados })}
+            disabled={asientosFiltrados.length === 0}
+          >
+            <Download className="h-3.5 w-3.5 mr-1" />Excel
+          </Button>
+          <Button size="sm" className="h-8 text-xs" onClick={() => setNuevoOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" />Nuevo asiento</Button>
+        </div>
       </div>
 
       <NuevoAsientoDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />

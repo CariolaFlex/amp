@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCLP } from '@/lib/utils/clp';
 import { Download } from 'lucide-react';
+import { exportarBalanceExcel } from '@/lib/utils/export-excel';
+import { descargarBalancePdf } from '@/lib/utils/export-pdf';
 
 const balanceData = [
   { cuenta: '1110001', nombre: 'Clientes',             dEnt: 22200000, hEnt: 0,          dSal: 22200000, hSal: 0          },
@@ -21,6 +23,15 @@ export default function BalancePage() {
   const totDSal = balanceData.reduce((s, r) => s + r.dSal, 0);
   const totHSal = balanceData.reduce((s, r) => s + r.hSal, 0);
 
+  const rowsExport = balanceData.map((r) => ({
+    ...r,
+    perdida:  r.dSal > 0 && r.cuenta.startsWith('5') ? r.dSal : 0,
+    ganancia: r.hSal > 0 && r.cuenta.startsWith('4') ? r.hSal : 0,
+    activo:   r.dSal > 0 && r.cuenta.startsWith('1') ? r.dSal : 0,
+    pasivo:   r.hSal > 0 && r.cuenta.startsWith('2') ? r.hSal : 0,
+  }));
+  const exportParams = { periodo: 'Mayo 2026', empresaNombre: 'Constructora Los Andes SpA', rows: rowsExport };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -29,8 +40,12 @@ export default function BalancePage() {
           <p className="text-sm text-muted-foreground">Mayo 2026 — Constructora Los Andes SpA</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs"><Download className="h-3.5 w-3.5 mr-1" />Excel</Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs"><Download className="h-3.5 w-3.5 mr-1" />PDF</Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => exportarBalanceExcel(exportParams)}>
+            <Download className="h-3.5 w-3.5 mr-1" />Excel
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => descargarBalancePdf(exportParams)}>
+            <Download className="h-3.5 w-3.5 mr-1" />PDF
+          </Button>
         </div>
       </div>
 

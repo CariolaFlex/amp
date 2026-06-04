@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CheckCircle2, Ban, LinkIcon, User } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Ban, LinkIcon, User, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDte, useOrdenVenta, useCotizacion, useMarcarDtePagado, useAnularDte } from '@/lib/data/ventas';
+import { descargarDtePdf } from '@/lib/utils/export-pdf';
+import { useSession } from 'next-auth/react';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
@@ -33,6 +35,9 @@ export default function DteDetallePage({ params }: { params: Promise<{ id: strin
   const clientes = useClientes();
   const marcarPagado = useMarcarDtePagado();
   const anular = useAnularDte();
+  const { data: session } = useSession();
+  const empresaNombre = session?.user?.name ?? 'Empresa';
+  const empresaRut = '';  // TODO: agregar rut empresa al JWT
 
   if (!dte) {
     return (
@@ -72,6 +77,14 @@ export default function DteDetallePage({ params }: { params: Promise<{ id: strin
               <Ban className="mr-1 h-3.5 w-3.5" />Anular
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => descargarDtePdf(dte, empresaNombre, empresaRut)}
+          >
+            <FileDown className="mr-1 h-3.5 w-3.5" />PDF
+          </Button>
         </div>
       </div>
 
