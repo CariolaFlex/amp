@@ -1,19 +1,10 @@
 'use client';
 
-/**
- * Tesorería derivada del flujo real:
- *  - CxC = DTEs emitidos (no pagados/anulados) con total positivo.
- *  - CxP = DTEs de proveedor aceptados (o con reserva).
- * Así Tesorería refleja automáticamente lo que se emite/recibe. SQL-ready:
- * más adelante esto puede venir de vistas/joins en SQL Server.
- */
-
+import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useDtes } from './ventas';
-import { useDtesProveedor } from './compras';
 import type { CuentaCobrar, CuentaPagar, BucketAging } from '@/types';
 
-export function bucketAging(fechaVencimiento?: Date): BucketAging {
+export function bucketAging(fechaVencimiento?: Date | string): BucketAging {
   if (!fechaVencimiento) return '0-30';
   const dias = Math.floor((Date.now() - new Date(fechaVencimiento).getTime()) / (24 * 3600 * 1000));
   if (dias <= 30) return '0-30';
@@ -22,43 +13,79 @@ export function bucketAging(fechaVencimiento?: Date): BucketAging {
   return '+90';
 }
 
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json() as Promise<T>;
+}
+
+interface RawCxC {
+  id: string;
+  clienteNombre: string;
+  clienteRut: string;
+  folioDte: number;
+  fechaEmision: string;
+  fechaVencimiento: string;
+  monto: number;
+  saldo: number;
+  estado: string;
+}
+
+interface RawCxP {
+  id: string;
+  proveedorNombre: string;
+  proveedorRut: string;
+  folioDte: number;
+  fechaEmision: string;
+  fechaVencimiento: string;
+  monto: number;
+  saldo: number;
+  estado: string;
+}
+
 export function useCuentasCobrar(): CuentaCobrar[] {
-  const dtes = useDtes();
+  const { data = [] } = useQuery<RawCxC[]>({
+    queryKey: ['cxc'],
+    queryFn: () => fetchJson<RawCxC[]>('/api/cxc'),
+  });
   return useMemo(
     () =>
-      dtes
-        .filter((d) => d.total > 0 && d.estado !== 'pagado' && d.estado !== 'anulado' && d.estado !== 'borrador')
-        .map((d) => ({
-          id: d.id,
-          clienteNombre: d.clienteNombre,
-          clienteRut: d.clienteRut,
-          folioDte: d.folio,
-          fechaEmision: d.fechaEmision,
-          fechaVencimiento: d.fechaVencimiento ?? d.fechaEmision,
-          monto: d.total,
-          saldo: d.total,
-          aging: bucketAging(d.fechaVencimiento),
+      data
+        .filter((r) => r.estado !== 'pagada')
+        .map((r) => ({
+          id: r.id,
+          clienteNombre: r.clienteNombre,
+          clienteRut: r.clienteRut,
+          folioDte: Number(r.folioDte),
+          fechaEmision: new Date(r.fechaEmision),
+          fechaVencimiento: new Date(r.fechaVencimiento),
+          monto: Number(r.monto),
+          saldo: Number(r.saldo),
+          aging: bucketAging(r.fechaVencimiento),
         })),
-    [dtes],
+    [data],
   );
 }
 
 export function useCuentasPagar(): CuentaPagar[] {
-  const dtesProv = useDtesProveedor();
+  const { data = [] } = useQuery<RawCxP[]>({
+    queryKey: ['cxp'],
+    queryFn: () => fetchJson<RawCxP[]>('/api/cxp'),
+  });
   return useMemo(
     () =>
-      dtesProv
-        .filter((d) => d.estado === 'aceptado' || d.estado === 'aceptado_con_reserva')
-        .map((d) => ({
-          id: d.id,
-          proveedorNombre: d.proveedorNombre,
-          proveedorRut: d.proveedorRut,
-          folioDte: d.folio,
-          fechaEmision: d.fechaEmision,
-          fechaVencimiento: d.fechaLimiteAcuse,
-          monto: d.total,
-          saldo: d.total,
+      data
+        .filter((r) => r.estado !== 'pagada')
+        .map((r) => ({
+          id: r.id,
+          proveedorNombre: r.proveedorNombre,
+          proveedorRut: r.proveedorRut,
+          folioDte: Number(r.folioDte),
+          fechaEmision: new Date(r.fechaEmision),
+          fechaVencimiento: new Date(r.fechaVencimiento),
+          monto: Number(r.monto),
+          saldo: Number(r.saldo),
         })),
-    [dtesProv],
+    [data],
   );
 }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useBhe, bheCol } from '@/lib/data/rrhh';
+import { useBhe, useCrearBHE } from '@/lib/data/rrhh';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import { formatRut } from '@/lib/utils/rut';
@@ -15,15 +15,16 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 const TASA_RETENCION = 0.1525;
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const now = new Date();
+const periodoActual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
 export default function BhePage() {
   const bhes = useBhe();
+  const crearBHE = useCrearBHE();
   const [open, setOpen] = useState(false);
   const [rut, setRut] = useState('');
   const [nombre, setNombre] = useState('');
   const [montoBruto, setMontoBruto] = useState('');
-  const [saving, setSaving] = useState(false);
   const bruto = parseInt(montoBruto.replace(/\D/g, '')) || 0;
   const retencion = Math.round(bruto * TASA_RETENCION);
   const liquido = bruto - retencion;
@@ -31,21 +32,19 @@ export default function BhePage() {
   async function registrar() {
     if (!nombre.trim()) { toast.error('Ingrese el nombre del prestador'); return; }
     if (bruto <= 0) { toast.error('Ingrese el monto bruto'); return; }
-    setSaving(true);
-    const now = new Date();
-    await bheCol.create({
-      rut: rut.trim(),
-      nombre: nombre.trim(),
-      periodo: `${MESES[now.getMonth()]} ${now.getFullYear()}`,
-      montoBruto: bruto,
-      retencion,
-      montoLiquido: liquido,
-      fecha: now,
-    });
-    toast.success('BHE registrada');
-    setSaving(false);
-    setOpen(false);
-    setRut(''); setNombre(''); setMontoBruto('');
+    try {
+      await crearBHE.mutateAsync({
+        rut: rut.trim(),
+        nombre: nombre.trim(),
+        periodo: periodoActual,
+        montoBruto: bruto,
+      });
+      toast.success('BHE registrada');
+      setOpen(false);
+      setRut(''); setNombre(''); setMontoBruto('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al registrar BHE');
+    }
   }
 
   return (
@@ -101,7 +100,9 @@ export default function BhePage() {
                   </CardContent>
                 </Card>
               )}
-              <Button className="w-full" onClick={registrar} disabled={saving}>{saving ? 'Registrando…' : 'Registrar BHE'}</Button>
+              <Button className="w-full" onClick={registrar} disabled={crearBHE.isPending}>
+                {crearBHE.isPending ? 'Registrando…' : 'Registrar BHE'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

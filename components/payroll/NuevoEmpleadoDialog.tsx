@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { formatRut } from '@/lib/utils/rut';
-import { empleadosCol } from '@/lib/data/rrhh';
+import { useCrearEmpleado } from '@/lib/data/rrhh';
 import type { TipoContrato } from '@/types';
 
 const selectClass = 'mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm';
@@ -15,26 +15,28 @@ const EMPTY = { rut: '', nombre: '', cargo: '', contrato: 'indefinido' as TipoCo
 
 export function NuevoEmpleadoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [form, setForm] = useState(EMPTY);
-  const [saving, setSaving] = useState(false);
+  const crearEmpleado = useCrearEmpleado();
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   React.useEffect(() => { if (open) setForm(EMPTY); }, [open]);
 
   async function crear() {
     if (!form.nombre.trim()) { toast.error('Ingrese el nombre'); return; }
-    setSaving(true);
-    await empleadosCol.create({
-      rut: form.rut.trim(),
-      nombre: form.nombre.trim(),
-      cargo: form.cargo.trim(),
-      contrato: form.contrato,
-      banco: form.banco.trim(),
-      numeroCuenta: form.numeroCuenta.trim(),
-      sueldoBase: Number(form.sueldoBase) || 0,
-      fechaIngreso: new Date(form.fechaIngreso),
-    });
-    toast.success('Empleado creado');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await crearEmpleado.mutateAsync({
+        rut: form.rut.trim(),
+        nombre: form.nombre.trim(),
+        cargo: form.cargo.trim(),
+        contrato: form.contrato,
+        banco: form.banco.trim(),
+        numeroCuenta: form.numeroCuenta.trim(),
+        sueldoBase: Number(form.sueldoBase) || 0,
+        fechaIngreso: form.fechaIngreso,
+      });
+      toast.success('Empleado creado');
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al crear empleado');
+    }
   }
 
   return (
@@ -68,7 +70,7 @@ export function NuevoEmpleadoDialog({ open, onOpenChange }: { open: boolean; onO
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={crear} disabled={saving}>{saving ? 'Creando…' : 'Crear empleado'}</Button>
+          <Button onClick={crear} disabled={crearEmpleado.isPending}>{crearEmpleado.isPending ? 'Creando…' : 'Crear empleado'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -7,18 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
-import { crearAsiento, type LineaAsiento } from '@/lib/data/contabilidad';
+import { useCrearAsiento, type LineaAsiento } from '@/lib/data/contabilidad';
 import { formatCLP } from '@/lib/utils/clp';
-import { genId } from '@/lib/data/collection';
 
-interface LineaEdit extends LineaAsiento { id: string; }
-const nueva = (): LineaEdit => ({ id: genId(), cuentaCodigo: '', cuentaNombre: '', debe: 0, haber: 0 });
+interface LineaEdit extends LineaAsiento { _id: string; }
+let _seq = 0;
+const nueva = (): LineaEdit => ({ _id: String(++_seq), cuentaCodigo: '', cuentaNombre: '', debe: 0, haber: 0 });
 
 export function NuevoAsientoDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [glosa, setGlosa] = useState('');
   const [lineas, setLineas] = useState<LineaEdit[]>([nueva(), nueva()]);
-  const [saving, setSaving] = useState(false);
+  const crearAsiento = useCrearAsiento();
 
   React.useEffect(() => {
     if (open) { setFecha(new Date().toISOString().slice(0, 10)); setGlosa(''); setLineas([nueva(), nueva()]); }
@@ -29,18 +29,26 @@ export function NuevoAsientoDialog({ open, onOpenChange }: { open: boolean; onOp
   const balanceado = totalDebe === totalHaber && totalDebe > 0;
 
   const upd = (id: string, field: keyof LineaEdit, value: string | number) =>
-    setLineas((p) => p.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
+    setLineas((p) => p.map((l) => (l._id === id ? { ...l, [field]: value } : l)));
 
   async function guardar() {
     if (!glosa.trim()) { toast.error('Ingrese la glosa'); return; }
     if (!balanceado) { toast.error('El asiento debe estar balanceado (Debe = Haber)'); return; }
     const validas = lineas.filter((l) => l.cuentaCodigo.trim() && (l.debe > 0 || l.haber > 0));
     if (validas.length < 2) { toast.error('Ingrese al menos dos líneas con cuenta y monto'); return; }
-    setSaving(true);
-    await crearAsiento(new Date(fecha), glosa.trim(), validas.map(({ cuentaCodigo, cuentaNombre, debe, haber }) => ({ cuentaCodigo, cuentaNombre, debe: Number(debe) || 0, haber: Number(haber) || 0 })));
-    toast.success('Asiento registrado');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await crearAsiento.mutateAsync({
+        fecha,
+        glosa: glosa.trim(),
+        lineas: validas.map(({ cuentaCodigo, cuentaNombre, debe, haber }) => ({
+          cuentaCodigo, cuentaNombre, debe: Number(debe) || 0, haber: Number(haber) || 0,
+        })),
+      });
+      toast.success('Asiento registrado');
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al guardar');
+    }
   }
 
   return (
@@ -62,12 +70,12 @@ export function NuevoAsientoDialog({ open, onOpenChange }: { open: boolean; onOp
               <span className="col-span-1" />
             </div>
             {lineas.map((l) => (
-              <div key={l.id} className="grid grid-cols-12 items-center gap-2">
-                <Input className="col-span-2 h-8 font-mono text-xs" value={l.cuentaCodigo} onChange={(e) => upd(l.id, 'cuentaCodigo', e.target.value)} placeholder="1110001" />
-                <Input className="col-span-5 h-8 text-xs" value={l.cuentaNombre} onChange={(e) => upd(l.id, 'cuentaNombre', e.target.value)} placeholder="Nombre de la cuenta" />
-                <Input className="col-span-2 h-8 text-right text-xs" type="number" value={l.debe || ''} onChange={(e) => upd(l.id, 'debe', Number(e.target.value))} placeholder="0" />
-                <Input className="col-span-2 h-8 text-right text-xs" type="number" value={l.haber || ''} onChange={(e) => upd(l.id, 'haber', Number(e.target.value))} placeholder="0" />
-                <button className="col-span-1 flex justify-end text-muted-foreground hover:text-destructive" onClick={() => setLineas((p) => p.filter((x) => x.id !== l.id))}><Trash2 className="h-3.5 w-3.5" /></button>
+              <div key={l._id} className="grid grid-cols-12 items-center gap-2">
+                <Input className="col-span-2 h-8 font-mono text-xs" value={l.cuentaCodigo} onChange={(e) => upd(l._id, 'cuentaCodigo', e.target.value)} placeholder="1110001" />
+                <Input className="col-span-5 h-8 text-xs" value={l.cuentaNombre} onChange={(e) => upd(l._id, 'cuentaNombre', e.target.value)} placeholder="Nombre de la cuenta" />
+                <Input className="col-span-2 h-8 text-right text-xs" type="number" value={l.debe || ''} onChange={(e) => upd(l._id, 'debe', Number(e.target.value))} placeholder="0" />
+                <Input className="col-span-2 h-8 text-right text-xs" type="number" value={l.haber || ''} onChange={(e) => upd(l._id, 'haber', Number(e.target.value))} placeholder="0" />
+                <button className="col-span-1 flex justify-end text-muted-foreground hover:text-destructive" onClick={() => setLineas((p) => p.filter((x) => x._id !== l._id))}><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             ))}
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setLineas((p) => [...p, nueva()])}><Plus className="mr-1 h-3.5 w-3.5" />Agregar línea</Button>
@@ -81,7 +89,7 @@ export function NuevoAsientoDialog({ open, onOpenChange }: { open: boolean; onOp
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={guardar} disabled={saving || !balanceado}>{saving ? 'Guardando…' : 'Registrar asiento'}</Button>
+          <Button onClick={guardar} disabled={crearAsiento.isPending || !balanceado}>{crearAsiento.isPending ? 'Guardando…' : 'Registrar asiento'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,19 +1,7 @@
 'use client';
 
-/** Acceso de datos de Contabilidad (libro diario). SQL-ready vía colección base. */
-
-import { asientosCol } from './collections';
-import { useCollection } from './collection';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AsientoContable } from '@/types';
-
-export { asientosCol };
-
-export function useAsientos() { return useCollection(asientosCol); }
-
-export async function siguienteNumeroAsiento(): Promise<number> {
-  const asientos = await asientosCol.list();
-  return asientos.reduce((m, a) => Math.max(m, a.numero), 100) + 1;
-}
 
 export interface LineaAsiento {
   cuentaCodigo: string;
@@ -22,20 +10,39 @@ export interface LineaAsiento {
   haber: number;
 }
 
-/** Crea un asiento de doble partida (una fila por línea, mismo número). */
-export async function crearAsiento(fecha: Date, glosa: string, lineas: LineaAsiento[]): Promise<void> {
-  const numero = await siguienteNumeroAsiento();
-  const periodo = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-  for (const l of lineas) {
-    await asientosCol.create({
-      fecha,
-      numero,
-      glosa,
-      debe: l.debe,
-      haber: l.haber,
-      cuentaCodigo: l.cuentaCodigo,
-      cuentaNombre: l.cuentaNombre,
-      periodo,
-    });
-  }
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json() as Promise<T>;
+}
+
+export function useAsientos(periodo?: string): AsientoContable[] {
+  const url = periodo ? `/api/asientos?periodo=${periodo}` : '/api/asientos';
+  const { data = [] } = useQuery<AsientoContable[]>({
+    queryKey: periodo ? ['asientos', periodo] : ['asientos'],
+    queryFn: () => fetchJson<AsientoContable[]>(url),
+  });
+  return data;
+}
+
+interface CrearAsientoInput {
+  fecha: string;
+  glosa: string;
+  lineas: LineaAsiento[];
+}
+
+export function useCrearAsiento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: CrearAsientoInput) => {
+      const res = await fetch('/api/asientos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<{ numero: number }>;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['asientos'] }),
+  });
 }

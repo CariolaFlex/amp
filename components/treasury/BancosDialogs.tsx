@@ -6,29 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { cuentasBancariasCol, registrarMovimientoBancario, useCuentasBancarias } from '@/lib/data/bancos';
+import { useCrearBancaria, useRegistrarMovimiento, useCuentasBancarias } from '@/lib/data/bancos';
 
 const selectClass = 'mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm';
 
 export function NuevaCuentaBancariaDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [form, setForm] = useState({ banco: '', numero: '', tipo: 'Cuenta Corriente', saldo: '' });
-  const [saving, setSaving] = useState(false);
+  const crearBancaria = useCrearBancaria();
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   React.useEffect(() => { if (open) setForm({ banco: '', numero: '', tipo: 'Cuenta Corriente', saldo: '' }); }, [open]);
 
   async function crear() {
     if (!form.banco.trim()) { toast.error('Ingrese el banco'); return; }
-    setSaving(true);
-    await cuentasBancariasCol.create({
-      banco: form.banco.trim(),
-      numero: form.numero.trim(),
-      tipo: form.tipo,
-      saldo: Number(form.saldo) || 0,
-      ultimaConciliacion: new Date(),
-    });
-    toast.success('Cuenta bancaria creada');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await crearBancaria.mutateAsync({
+        banco: form.banco.trim(),
+        numero: form.numero.trim(),
+        tipo: form.tipo,
+        saldo: Number(form.saldo) || 0,
+      });
+      toast.success('Cuenta bancaria creada');
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al crear cuenta');
+    }
   }
 
   return (
@@ -50,7 +51,7 @@ export function NuevaCuentaBancariaDialog({ open, onOpenChange }: { open: boolea
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={crear} disabled={saving}>{saving ? 'Creando…' : 'Crear cuenta'}</Button>
+          <Button onClick={crear} disabled={crearBancaria.isPending}>{crearBancaria.isPending ? 'Creando…' : 'Crear cuenta'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -59,25 +60,34 @@ export function NuevaCuentaBancariaDialog({ open, onOpenChange }: { open: boolea
 
 export function RegistrarMovimientoBancarioDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const cuentas = useCuentasBancarias();
+  const registrarMov = useRegistrarMovimiento();
   const [cuentaId, setCuentaId] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [descripcion, setDescripcion] = useState('');
   const [tipo, setTipo] = useState<'abono' | 'cargo'>('abono');
   const [monto, setMonto] = useState('');
-  const [saving, setSaving] = useState(false);
 
-  React.useEffect(() => { if (open) { setCuentaId(''); setFecha(new Date().toISOString().slice(0, 10)); setDescripcion(''); setTipo('abono'); setMonto(''); } }, [open]);
+  React.useEffect(() => {
+    if (open) { setCuentaId(''); setFecha(new Date().toISOString().slice(0, 10)); setDescripcion(''); setTipo('abono'); setMonto(''); }
+  }, [open]);
 
   async function registrar() {
     if (!cuentaId) { toast.error('Seleccione una cuenta'); return; }
     if (!descripcion.trim()) { toast.error('Ingrese la descripción'); return; }
     const n = Number(monto);
     if (!n || n <= 0) { toast.error('Ingrese un monto válido'); return; }
-    setSaving(true);
-    await registrarMovimientoBancario(cuentaId, new Date(fecha), descripcion.trim(), tipo === 'abono' ? n : -n);
-    toast.success('Movimiento registrado');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await registrarMov.mutateAsync({
+        cuentaId,
+        fecha,
+        descripcion: descripcion.trim(),
+        monto: tipo === 'abono' ? n : -n,
+      });
+      toast.success('Movimiento registrado');
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al registrar');
+    }
   }
 
   return (
@@ -110,7 +120,7 @@ export function RegistrarMovimientoBancarioDialog({ open, onOpenChange }: { open
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={registrar} disabled={saving || cuentas.length === 0}>{saving ? 'Registrando…' : 'Registrar'}</Button>
+          <Button onClick={registrar} disabled={registrarMov.isPending || cuentas.length === 0}>{registrarMov.isPending ? 'Registrando…' : 'Registrar'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
