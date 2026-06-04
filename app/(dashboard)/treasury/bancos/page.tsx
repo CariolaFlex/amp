@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
-import { Plus, ArrowLeft, Landmark } from 'lucide-react';
+import { Plus, ArrowLeft, Landmark, FileSearch } from 'lucide-react';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useCuentasBancarias, useMovimientosBancarios } from '@/lib/data/bancos';
 import { useCuentasCobrar, useCuentasPagar } from '@/lib/data/tesoreria';
 import { NuevaCuentaBancariaDialog, RegistrarMovimientoBancarioDialog } from '@/components/treasury/BancosDialogs';
-import type { MovimientoBancario } from '@/types';
+import { ConciliacionDialog } from '@/components/treasury/ConciliacionDialog';
+import type { MovimientoBancario, CuentaBancaria } from '@/types';
 
 export default function BancosPage() {
   const cuentas = useCuentasBancarias();
@@ -21,6 +22,7 @@ export default function BancosPage() {
   const cxp = useCuentasPagar();
   const [cuentaOpen, setCuentaOpen] = useState(false);
   const [movOpen, setMovOpen] = useState(false);
+  const [conciliandoCuenta, setConciliandoCuenta] = useState<CuentaBancaria | null>(null);
 
   const saldoTotal = cuentas.reduce((s, c) => s + c.saldo, 0);
   const movPorCuenta = useMemo(() => {
@@ -63,6 +65,13 @@ export default function BancosPage() {
 
       <NuevaCuentaBancariaDialog open={cuentaOpen} onOpenChange={setCuentaOpen} />
       <RegistrarMovimientoBancarioDialog open={movOpen} onOpenChange={setMovOpen} />
+      {conciliandoCuenta && (
+        <ConciliacionDialog
+          cuenta={conciliandoCuenta}
+          open={!!conciliandoCuenta}
+          onOpenChange={(v) => { if (!v) setConciliandoCuenta(null); }}
+        />
+      )}
 
       {/* Cuentas bancarias */}
       {cuentas.length === 0 ? (
@@ -86,6 +95,13 @@ export default function BancosPage() {
                     <div className="text-right">
                       <p className={`text-2xl font-bold ${c.saldo >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCLP(c.saldo)}</p>
                       <p className="text-xs text-muted-foreground">Últ. mov.: {c.ultimaConciliacion ? formatDate(c.ultimaConciliacion) : '—'}</p>
+                      <button
+                        onClick={() => setConciliandoCuenta(c)}
+                        className="mt-1.5 flex items-center gap-1 rounded px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      >
+                        <FileSearch className="h-3 w-3" />
+                        Subir cartola
+                      </button>
                     </div>
                   </div>
                   <div className="space-y-2">
