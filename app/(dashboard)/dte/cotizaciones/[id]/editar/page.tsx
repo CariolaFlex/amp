@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCLP } from '@/lib/utils/clp';
 import { useProductos } from '@/lib/data/inventory';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
-import { useCotizacion, actualizarCotizacion, calcTotales, aplicaIva } from '@/lib/data/ventas';
+import { useCotizacion, useActualizarCotizacion, calcTotales, aplicaIva } from '@/lib/data/ventas';
 import { Plus, Trash2, ArrowLeft, Save, Send } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -41,6 +41,7 @@ export default function EditarCotizacionPage({ params }: { params: Promise<{ id:
   const cotizacion = useCotizacion(id);
   const clientes = useClientes();
   const productos = useProductos();
+  const actualizar = useActualizarCotizacion(id);
 
   const [ready, setReady] = useState(false);
   const [tipoDte, setTipoDte] = useState('33');
@@ -88,20 +89,25 @@ export default function EditarCotizacionPage({ params }: { params: Promise<{ id:
     if (!clienteNombre) { toast.error('Seleccione o ingrese el cliente'); return; }
     if (lineasDte.every((l) => !l.descripcion.trim())) { toast.error('Agregue al menos una línea'); return; }
     setSaving(true);
-    await actualizarCotizacion(id, {
-      tipoDte: tipoNum,
-      clienteId: cli?.id,
-      clienteNombre,
-      clienteRut,
-      condicionPago,
-      lineas: lineasDte.filter((l) => l.descripcion.trim()),
-      neto, iva, total,
-      notas: notas.trim() || undefined,
-      estado: nuevoEstado,
-    });
-    toast.success('Cotización actualizada');
-    setSaving(false);
-    router.push('/dte/cotizaciones');
+    try {
+      await actualizar.mutateAsync({
+        tipoDte: tipoNum,
+        clienteId: cli?.id,
+        clienteNombre,
+        clienteRut,
+        condicionPago,
+        lineas: lineasDte.filter((l) => l.descripcion.trim()),
+        neto, iva, total,
+        notas: notas.trim() || undefined,
+        estado: nuevoEstado,
+      });
+      toast.success('Cotización actualizada');
+      router.push('/dte/cotizaciones');
+    } catch {
+      toast.error('Error al guardar la cotización');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

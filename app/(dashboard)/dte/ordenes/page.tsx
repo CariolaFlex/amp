@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { VentasNav } from '@/components/dte/VentasNav';
-import { useOrdenesVenta, emitirDteDesdeOV, anularOrdenVenta } from '@/lib/data/ventas';
+import { useOrdenesVenta, useEmitirDte, useAnularOV } from '@/lib/data/ventas';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import type { OrdenVenta, EstadoOV } from '@/types';
+import type { EstadoOV } from '@/types';
 
 const ESTADO_CONFIG: Record<EstadoOV, { label: string; variant: 'success' | 'warning' | 'muted' }> = {
   pendiente: { label: 'Pendiente facturar', variant: 'warning' },
@@ -22,19 +22,29 @@ const ESTADO_CONFIG: Record<EstadoOV, { label: string; variant: 'success' | 'war
 export default function OrdenesVentaPage() {
   const ordenes = useOrdenesVenta();
   const router = useRouter();
+  const emitir = useEmitirDte();
+  const anular = useAnularOV();
 
-  async function handleEmitir(ov: OrdenVenta) {
-    const dte = await emitirDteDesdeOV(ov);
-    toast.success(`DTE folio #${dte.folio} emitido`);
-    router.push('/dte');
+  async function handleEmitir(ovId: string) {
+    try {
+      const dte = await emitir.mutateAsync(ovId);
+      toast.success(`DTE folio #${dte.folio} emitido`);
+      router.push('/dte');
+    } catch {
+      toast.error('Error al emitir el DTE');
+    }
   }
 
-  async function handleAnular(ov: OrdenVenta) {
-    await anularOrdenVenta(ov);
-    const msg = ov.dteId
-      ? `OV ${ov.numero} anulada — DTE anulado y stock repuesto`
-      : `OV ${ov.numero} anulada — cotización vuelve a Aprobada`;
-    toast.success(msg);
+  async function handleAnular(ovId: string, numero: string, tieneDte: boolean) {
+    try {
+      await anular.mutateAsync(ovId);
+      const msg = tieneDte
+        ? `OV ${numero} anulada — DTE anulado y stock repuesto`
+        : `OV ${numero} anulada — cotización vuelve a Aprobada`;
+      toast.success(msg);
+    } catch {
+      toast.error('Error al anular la OV');
+    }
   }
 
   return (
@@ -67,13 +77,22 @@ export default function OrdenesVentaPage() {
           actions={(row) => (
             <>
               {row.estado === 'pendiente' && (
-                <DropdownMenuItem className="text-xs" onClick={() => handleEmitir(row)}>Emitir DTE</DropdownMenuItem>
+                <DropdownMenuItem className="text-xs" onClick={() => handleEmitir(row.id)}>
+                  Emitir DTE
+                </DropdownMenuItem>
               )}
               {row.estado === 'facturada' && (
-                <DropdownMenuItem className="text-xs" asChild><Link href="/dte">Ver DTE emitido</Link></DropdownMenuItem>
+                <DropdownMenuItem className="text-xs" asChild>
+                  <Link href="/dte">Ver DTE emitido</Link>
+                </DropdownMenuItem>
               )}
               {(row.estado === 'pendiente' || row.estado === 'facturada') && (
-                <DropdownMenuItem className="text-xs text-destructive" onClick={() => handleAnular(row)}>Anular OV</DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-xs text-destructive"
+                  onClick={() => handleAnular(row.id, row.numero, !!row.dteId)}
+                >
+                  Anular OV
+                </DropdownMenuItem>
               )}
             </>
           )}

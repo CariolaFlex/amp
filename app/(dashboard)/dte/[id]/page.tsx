@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CheckCircle2, Ban, LinkIcon, User } from 'lucide-react';
 import { toast } from 'sonner';
-import { useDte, useOrdenVenta, useCotizacion, marcarDtePagado, anularDte } from '@/lib/data/ventas';
+import { useDte, useOrdenVenta, useCotizacion, useMarcarDtePagado, useAnularDte } from '@/lib/data/ventas';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
@@ -31,6 +31,8 @@ export default function DteDetallePage({ params }: { params: Promise<{ id: strin
   const ov = useOrdenVenta(dte?.ordenVentaId);
   const cotizacion = useCotizacion(ov?.cotizacionId);
   const clientes = useClientes();
+  const marcarPagado = useMarcarDtePagado();
+  const anular = useAnularDte();
 
   if (!dte) {
     return (
@@ -57,12 +59,16 @@ export default function DteDetallePage({ params }: { params: Promise<{ id: strin
         </div>
         <div className="flex gap-2">
           {dte.estado !== 'pagado' && dte.estado !== 'anulado' && (
-            <Button size="sm" className="h-8 text-xs" onClick={() => { marcarDtePagado(dte.id); toast.success('DTE marcado como pagado'); }}>
+            <Button size="sm" className="h-8 text-xs" onClick={() => {
+              marcarPagado.mutate(dte.id, { onSuccess: () => toast.success('DTE marcado como pagado') });
+            }}>
               <CheckCircle2 className="mr-1 h-3.5 w-3.5" />Marcar pagado
             </Button>
           )}
           {dte.estado !== 'anulado' && (
-            <Button variant="outline" size="sm" className="h-8 text-xs text-destructive" onClick={() => { anularDte(dte.id); toast('DTE anulado'); }}>
+            <Button variant="outline" size="sm" className="h-8 text-xs text-destructive" onClick={() => {
+              anular.mutate(dte.id, { onSuccess: () => toast('DTE anulado') });
+            }}>
               <Ban className="mr-1 h-3.5 w-3.5" />Anular
             </Button>
           )}

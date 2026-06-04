@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCLP } from '@/lib/utils/clp';
 import { useProductos } from '@/lib/data/inventory';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
-import { cotizacionesCol, calcTotales, aplicaIva, siguienteNumeroCotizacion } from '@/lib/data/ventas';
+import { useCrearCotizacion, calcTotales, aplicaIva } from '@/lib/data/ventas';
 import { useOportunidad } from '@/lib/data/crm';
 import { useSession } from 'next-auth/react';
 import { Plus, Trash2, ArrowLeft, Save, Send } from 'lucide-react';
@@ -41,6 +41,7 @@ export default function NuevaCotizacionPage() {
   const productos = useProductos();
   const { data: session } = useSession();
   const user = session?.user;
+  const crearCotizacion = useCrearCotizacion();
 
   const [oportunidadId, setOportunidadId] = useState<string | undefined>(undefined);
   const oportunidad = useOportunidad(oportunidadId);
@@ -91,24 +92,27 @@ export default function NuevaCotizacionPage() {
     if (lineasDte.every((l) => !l.descripcion.trim())) { toast.error('Agregue al menos una línea con descripción'); return; }
 
     setSaving(true);
-    await cotizacionesCol.create({
-      numero: await siguienteNumeroCotizacion(),
-      clienteId: cli?.id,
-      clienteNombre,
-      clienteRut,
-      tipoDte: tipoNum,
-      fechaEmision: new Date(),
-      condicionPago,
-      lineas: lineasDte.filter((l) => l.descripcion.trim()),
-      neto, iva, total,
-      notas: notas.trim() || undefined,
-      estado,
-      vendedorId: user?.id,
-      vendedorNombre: user?.name ?? undefined,
-    });
-    toast.success(estado === 'enviada' ? 'Cotización creada y enviada' : 'Cotización guardada como borrador');
-    setSaving(false);
-    router.push('/dte/cotizaciones');
+    try {
+      await crearCotizacion.mutateAsync({
+        clienteId: cli?.id,
+        clienteNombre,
+        clienteRut,
+        tipoDte: tipoNum,
+        condicionPago,
+        lineas: lineasDte.filter((l) => l.descripcion.trim()),
+        neto, iva, total,
+        notas: notas.trim() || undefined,
+        estado,
+        vendedorId: user?.id,
+        vendedorNombre: user?.name ?? undefined,
+      });
+      toast.success(estado === 'enviada' ? 'Cotización creada y enviada' : 'Cotización guardada como borrador');
+      router.push('/dte/cotizaciones');
+    } catch {
+      toast.error('Error al guardar la cotización');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

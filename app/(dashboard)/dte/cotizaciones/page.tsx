@@ -5,7 +5,12 @@ import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { VentasNav } from '@/components/dte/VentasNav';
-import { useCotizaciones, aprobarCotizacion, rechazarCotizacion, convertirAOrdenVenta } from '@/lib/data/ventas';
+import {
+  useCotizaciones,
+  useAprobarCotizacion,
+  useRechazarCotizacion,
+  useConvertirAOV,
+} from '@/lib/data/ventas';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import { Plus } from 'lucide-react';
@@ -13,7 +18,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import type { Cotizacion, EstadoCotizacion } from '@/types';
+import type { EstadoCotizacion } from '@/types';
 
 const ESTADO_CONFIG: Record<EstadoCotizacion, { label: string; variant: 'success' | 'destructive' | 'warning' | 'muted' | 'default' }> = {
   borrador: { label: 'Borrador', variant: 'muted' },
@@ -26,11 +31,18 @@ const ESTADO_CONFIG: Record<EstadoCotizacion, { label: string; variant: 'success
 export default function CotizacionesPage() {
   const cotizaciones = useCotizaciones();
   const router = useRouter();
+  const aprobar = useAprobarCotizacion();
+  const rechazar = useRechazarCotizacion();
+  const convertir = useConvertirAOV();
 
-  async function handleConvertir(c: Cotizacion) {
-    const ov = await convertirAOrdenVenta(c);
-    toast.success(`Orden de Venta ${ov.numero} generada`);
-    router.push('/dte/ordenes');
+  async function handleConvertir(id: string) {
+    try {
+      const ov = await convertir.mutateAsync(id);
+      toast.success(`Orden de Venta ${ov.numero} generada`);
+      router.push('/dte/ordenes');
+    } catch {
+      toast.error('Error al convertir la cotización');
+    }
   }
 
   return (
@@ -70,16 +82,26 @@ export default function CotizacionesPage() {
             <>
               {(row.estado === 'borrador' || row.estado === 'enviada') && (
                 <>
-                  <DropdownMenuItem className="text-xs" asChild><Link href={`/dte/cotizaciones/${row.id}/editar`}>Editar</Link></DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs" onClick={() => { aprobarCotizacion(row.id); toast.success('Cotización aprobada'); }}>Aprobar</DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs text-destructive" onClick={() => { rechazarCotizacion(row.id); toast('Cotización rechazada'); }}>Rechazar</DropdownMenuItem>
+                  <DropdownMenuItem className="text-xs" asChild>
+                    <Link href={`/dte/cotizaciones/${row.id}/editar`}>Editar</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-xs" onClick={() => {
+                    aprobar.mutate(row.id, { onSuccess: () => toast.success('Cotización aprobada') });
+                  }}>Aprobar</DropdownMenuItem>
+                  <DropdownMenuItem className="text-xs text-destructive" onClick={() => {
+                    rechazar.mutate(row.id, { onSuccess: () => toast('Cotización rechazada') });
+                  }}>Rechazar</DropdownMenuItem>
                 </>
               )}
               {row.estado === 'aprobada' && (
-                <DropdownMenuItem className="text-xs" onClick={() => handleConvertir(row)}>Convertir a Orden de Venta</DropdownMenuItem>
+                <DropdownMenuItem className="text-xs" onClick={() => handleConvertir(row.id)}>
+                  Convertir a Orden de Venta
+                </DropdownMenuItem>
               )}
               {row.estado === 'convertida' && (
-                <DropdownMenuItem className="text-xs" asChild><Link href="/dte/ordenes">Ver Orden de Venta</Link></DropdownMenuItem>
+                <DropdownMenuItem className="text-xs" asChild>
+                  <Link href="/dte/ordenes">Ver Orden de Venta</Link>
+                </DropdownMenuItem>
               )}
             </>
           )}
