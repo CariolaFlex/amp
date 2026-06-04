@@ -9,9 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { validarRut, formatearRut } from '@/lib/validators/rut';
+import { formatearRut } from '@/lib/validators/rut';
 import { useCrearCliente } from '@/lib/data/clientes';
+import { RutAutocomplete } from '@/components/ui/rut-autocomplete';
 import type { ClienteMaestro, TipoContribuyente } from '@/types';
+import type { ServelResult } from '@/app/api/rut/route';
 
 const ESTADOS_CIVILES = ['Soltero/a', 'Casado/a', 'Divorciado/a', 'Viudo/a', 'Conviviente civil'];
 const NIVELES_ESTUDIO = ['Básica', 'Media', 'Técnico', 'Universitario', 'Postgrado'];
@@ -55,33 +57,37 @@ export default function NuevoClientePage() {
   const crearCliente = useCrearCliente();
   const [tipo, setTipo] = useState<TipoContribuyente>('persona_natural');
   const [form, setForm] = useState<FormState>(EMPTY);
-  const [rutError, setRutError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const set = (k: keyof FormState, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  function handleRut(v: string) {
-    set('rut', v);
-    if (v.length < 3) { setRutError(''); return; }
-    setRutError(validarRut(v) ? '' : 'RUT inválido (módulo 11)');
-  }
-
-  function handleRutBlur() {
-    if (form.rut && !rutError) set('rut', formatearRut(form.rut));
+  function handleServelSelect(r: ServelResult) {
+    set('rut', r.rut);
+    if (r.tipo === 'empresa') {
+      setTipo('empresa');
+      set('nombreEmpresa', r.nombre);
+      set('razonSocial', r.nombre);
+    } else {
+      setTipo('persona_natural');
+      // SERVEL formato "APELLIDO1 APELLIDO2, NOMBRE1 NOMBRE2"
+      const parts = r.nombre.split(',');
+      if (parts.length === 2) {
+        set('apellidos', parts[0].trim());
+        set('nombres',   parts[1].trim());
+      } else {
+        set('nombres', r.nombre);
+      }
+    }
   }
 
   async function handleGuardar() {
-    if (form.rut && rutError) {
-      toast.error('Corrija el RUT antes de guardar');
-      return;
-    }
     if (tipo === 'persona_natural' && !form.nombres.trim() && !form.apellidos.trim()) {
       toast.error('Ingrese al menos nombres o apellidos');
       return;
     }
     if (tipo === 'empresa') {
       if (!form.nombreEmpresa.trim()) { toast.error('Ingrese el nombre de la empresa'); return; }
-      if (!form.rut.trim() || rutError) { toast.error('El RUT es obligatorio para empresas'); return; }
+      if (!form.rut.trim()) { toast.error('El RUT es obligatorio para empresas'); return; }
     }
 
     setSaving(true);
@@ -167,19 +173,20 @@ export default function NuevoClientePage() {
           </div>
         </div>
 
-        {/* RUT */}
+        {/* RUT con autocomplete SERVEL */}
         <div>
           <Label className="text-xs text-muted-foreground">
             RUT / Documento {tipo === 'persona_natural' ? '(opcional en prospectos)' : '(requerido)'}
           </Label>
-          <Input
+          <RutAutocomplete
             value={form.rut}
-            onChange={(e) => handleRut(e.target.value)}
-            onBlur={handleRutBlur}
-            placeholder="Ej: 12.345.678-9"
-            className={cn('mt-1 font-mono', rutError && 'border-destructive')}
+            onChange={(v) => set('rut', v)}
+            onSelect={handleServelSelect}
+            className="mt-1"
           />
-          {rutError && <p className="mt-1 text-xs text-destructive">{rutError}</p>}
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Escribe el RUT o nombre — se autocompleta con el registro SII cuando la base esté cargada.
+          </p>
         </div>
 
         {/* Persona natural */}
