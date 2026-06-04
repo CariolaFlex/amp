@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { getPool, sql } from '@/lib/db/mssql';
+import { insertarNotificacion } from '@/lib/db/notificaciones';
 import { randomUUID } from 'crypto';
 import type { DteProveedor } from '@/types';
 
@@ -59,6 +60,12 @@ export async function POST(req: Request) {
       .input('total', sql.BigInt, body.total ?? 0)
       .input('cxpId', sql.NVarChar(36), cxpId)
       .execute('sp_dtesProveedor_create');
+
+    void insertarNotificacion({
+      empresaId,
+      tipo: 'dte_recibido',
+      mensaje: `DTE folio #${body.folio as number} recibido de ${body.proveedorNombre as string}. Acusar antes de 8 días.`,
+    });
 
     return Response.json({ id }, { status: 201 });
   } catch (e) {

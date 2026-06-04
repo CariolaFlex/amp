@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { getPool, sql } from '@/lib/db/mssql';
+import { insertarNotificacion } from '@/lib/db/notificaciones';
 import { randomUUID } from 'crypto';
 import type { Dte, TipoDte, EstadoDte } from '@/types';
 
@@ -59,6 +60,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       vendedorId: (row.vendedorId as string) ?? undefined,
       ordenVentaId: (row.ordenVentaId as string) ?? undefined,
     };
+
+    void insertarNotificacion({
+      empresaId,
+      tipo: 'dte_emitido',
+      mensaje: `DTE folio #${folio} emitido a ${ov.clienteNombre ?? 'cliente'}.`,
+    });
 
     return Response.json(dte, { status: 201 });
   } catch (e: unknown) {

@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { getPool, sql } from '@/lib/db/mssql';
+import { insertarNotificacion } from '@/lib/db/notificaciones';
 import { randomUUID } from 'crypto';
 import type { OrdenCompra, EstadoOC } from '@/types';
 
@@ -58,6 +59,12 @@ export async function POST(req: Request) {
       .input('fechaEmision', sql.DateTime2, new Date())
       .input('total', sql.BigInt, body.total ?? 0)
       .execute('sp_ordenescompra_create');
+
+    void insertarNotificacion({
+      empresaId,
+      tipo: 'oc_creada',
+      mensaje: `OC ${numero} creada para ${body.proveedorNombre as string}.`,
+    });
 
     return Response.json({ id, numero }, { status: 201 });
   } catch (e) {
