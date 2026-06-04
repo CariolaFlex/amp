@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { registrarMovimiento } from '@/lib/data/inventory';
+import { useAjustarStock } from '@/lib/data/inventory';
 import { useSession } from 'next-auth/react';
 import type { Producto, MovimientoStock } from '@/types';
 
@@ -24,6 +24,7 @@ export function AjusteStockDialog({ producto, onClose }: Props) {
   const [cantidad, setCantidad] = useState('');
   const [motivo, setMotivo] = useState('');
   const [saving, setSaving] = useState(false);
+  const ajustar = useAjustarStock();
 
   React.useEffect(() => {
     if (producto) { setTipo('entrada'); setCantidad(''); setMotivo(''); }
@@ -34,10 +35,21 @@ export function AjusteStockDialog({ producto, onClose }: Props) {
     const n = Number(cantidad);
     if (!n || n === 0) { toast.error('Ingrese una cantidad distinta de 0'); return; }
     setSaving(true);
-    await registrarMovimiento(producto, tipo, n, motivo, user?.name ?? 'Sistema');
-    toast.success('Movimiento registrado');
-    setSaving(false);
-    onClose();
+    try {
+      await ajustar.mutateAsync({
+        productoId: producto.id,
+        tipo,
+        cantidad: n,
+        motivo: motivo || undefined,
+        usuario: user?.name ?? 'Sistema',
+      });
+      toast.success('Movimiento registrado');
+      onClose();
+    } catch {
+      toast.error('Error al registrar el movimiento');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

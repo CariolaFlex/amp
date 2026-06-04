@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { DataTable } from '@/components/ui/data-table';
-import { useDtesProveedor, useOrdenesCompra, useProveedores, acusarDte } from '@/lib/data/compras';
+import { useDtesProveedor, useOrdenesCompra, useProveedores, useAcusarDte } from '@/lib/data/compras';
 import { NuevoProveedorDialog, NuevaOCDialog, RegistrarDteProveedorDialog } from '@/components/purchasing/ComprasDialogs';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate, daysUntil } from '@/lib/utils/dates';
@@ -25,6 +25,7 @@ const OC_CONFIG: Record<EstadoOC, { label: string; variant: 'muted' | 'warning' 
 };
 
 function AcuseCard({ dte }: { dte: DteProveedor }) {
+  const acusar = useAcusarDte();
   const diasRestantes = daysUntil(dte.fechaLimiteAcuse);
   const progreso = Math.max(0, Math.min(100, ((DIAS_LIMITE - Math.max(0, diasRestantes)) / DIAS_LIMITE) * 100));
   const esCritico = diasRestantes <= 1;
@@ -57,13 +58,13 @@ function AcuseCard({ dte }: { dte: DteProveedor }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" className="h-7 flex-1 bg-success/90 text-xs text-white hover:bg-success" onClick={() => acusarDte(dte.id, 'aceptado')}>
+              <Button size="sm" className="h-7 flex-1 bg-success/90 text-xs text-white hover:bg-success" onClick={() => acusar.mutate({ id: dte.id, accion: 'aceptado' })}>
                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />Aceptar
               </Button>
-              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => acusarDte(dte.id, 'aceptado_con_reserva')}>
+              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => acusar.mutate({ id: dte.id, accion: 'aceptado_con_reserva' })}>
                 <AlertOctagon className="mr-1 h-3.5 w-3.5" />Con Reserva
               </Button>
-              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => acusarDte(dte.id, 'reclamado')}>
+              <Button variant="outline" size="sm" className="h-7 flex-1 text-xs" onClick={() => acusar.mutate({ id: dte.id, accion: 'reclamado' })}>
                 <Flag className="mr-1 h-3.5 w-3.5" />Reclamar
               </Button>
             </div>

@@ -1,72 +1,127 @@
 'use client';
 
-/** Acceso de datos de Inventario. SQL-ready vía colecciones base. */
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Producto, MovimientoStock, EstadoStock } from '@/types';
 
-import { useMemo } from 'react';
-import { productosCol, movimientosCol } from './collections';
-import { useCollection } from './collection';
-import type { Producto, EstadoStock, MovimientoStock } from '@/types';
+// ── Pure helpers ──────────────────────────────────────────────
 
-export { productosCol, movimientosCol };
-
-/** Estado de stock derivado (no se confía en el campo almacenado). */
 export function calcEstado(disponible: number, minimo: number): EstadoStock {
   if (disponible <= 0) return 'sin_stock';
   if (minimo > 0 && disponible <= minimo) return 'bajo_minimo';
   return 'ok';
 }
 
-export function useProductos(): Producto[] {
-  const productos = useCollection(productosCol);
-  return useMemo(
-    () => productos.map((p) => ({ ...p, estado: calcEstado(p.stockDisponible, p.stockMinimo) })),
-    [productos],
-  );
+// ── Query Keys ────────────────────────────────────────────────
+
+const KEYS = {
+  productos: ['productos'] as const,
+  producto: (id: string) => ['productos', id] as const,
+  movimientos: ['movimientos'] as const,
+  movimientosByProducto: (id: string) => ['movimientos', id] as const,
+};
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json() as Promise<T>;
 }
 
-export function useProducto(id: string | undefined): Producto | undefined {
-  const productos = useProductos();
-  return id ? productos.find((p) => p.id === id) : undefined;
+// ── List hooks ────────────────────────────────────────────────
+
+export function useProductos(): Producto[] {
+  const { data = [] } = useQuery<Producto[]>({
+    queryKey: KEYS.productos,
+    queryFn: () => fetchJson<Producto[]>('/api/productos'),
+  });
+  return data;
 }
 
 export function useMovimientos(): MovimientoStock[] {
-  return useCollection(movimientosCol);
+  const { data = [] } = useQuery<MovimientoStock[]>({
+    queryKey: KEYS.movimientos,
+    queryFn: () => fetchJson<MovimientoStock[]>('/api/movimientos'),
+  });
+  return data;
 }
 
 export function useMovimientosByProducto(productoId: string | undefined): MovimientoStock[] {
-  const all = useCollection(movimientosCol);
-  return useMemo(() => (productoId ? all.filter((m) => m.productoId === productoId) : []), [all, productoId]);
+  const { data = [] } = useQuery<MovimientoStock[]>({
+    queryKey: KEYS.movimientosByProducto(productoId ?? ''),
+    queryFn: () => fetchJson<MovimientoStock[]>(`/api/movimientos?productoId=${productoId}`),
+    enabled: !!productoId,
+  });
+  return data;
 }
 
-/**
- * Registra un movimiento de stock y actualiza el stock del producto en una
- * sola operación. `cantidad` se interpreta según el tipo:
- *  - entrada → suma (se fuerza positivo)
- *  - salida  → resta (se fuerza negativo)
- *  - ajuste / transferencia → usa el signo tal cual
- */
-export async function registrarMovimiento(
-  producto: Producto,
-  tipo: MovimientoStock['tipo'],
-  cantidad: number,
-  motivo: string,
-  usuario: string,
-): Promise<void> {
-  const magnitud = Math.abs(cantidad);
-  const delta = tipo === 'entrada' ? magnitud : tipo === 'salida' ? -magnitud : cantidad;
-  const nuevoStock = Math.max(0, producto.stockDisponible + delta);
+// ── Single-item hook ──────────────────────────────────────────
 
-  await movimientosCol.create({
-    productoId: producto.id,
-    productoNombre: producto.nombre,
-    tipo,
-    cantidad: delta,
-    motivo: motivo || undefined,
-    fecha: new Date(),
-    usuario,
+export function useProducto(id: string | undefined): Producto | undefined {
+  const { data } = useQuery<Producto>({
+    queryKey: KEYS.producto(id ?? ''),
+    queryFn: () => fetchJson<Producto>(`/api/productos/${id}`),
+    enabled: !!id,
   });
-  await productosCol.update(producto.id, {
-    stockDisponible: nuevoStock,
-    estado: calcEstado(nuevoStock, producto.stockMinimo),
+  return data;
+}
+
+// ── Mutation: crear producto ──────────────────────────────────
+
+interface CrearProductoInput {
+  sku: string;
+  nombre: string;
+  categoria: string;
+  precioVenta: number;
+  costoPMP: number;
+  stockDisponible: number;
+  stockMinimo: number;
+  unidad: string;
+}
+
+export function useCrearProducto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: CrearProductoInput) => {
+      const res = await fetch('/api/productos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<{ id: string }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.productos });
+      qc.invalidateQueries({ queryKey: KEYS.movimientos });
+    },
+  });
+}
+
+// ── Mutation: ajustar stock ───────────────────────────────────
+
+interface AjustarStockInput {
+  productoId: string;
+  tipo: MovimientoStock['tipo'];
+  cantidad: number;
+  motivo?: string;
+  usuario: string;
+}
+
+export function useAjustarStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: AjustarStockInput) => {
+      const res = await fetch('/api/movimientos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: KEYS.productos });
+      qc.invalidateQueries({ queryKey: KEYS.producto(vars.productoId) });
+      qc.invalidateQueries({ queryKey: KEYS.movimientos });
+      qc.invalidateQueries({ queryKey: KEYS.movimientosByProducto(vars.productoId) });
+    },
   });
 }

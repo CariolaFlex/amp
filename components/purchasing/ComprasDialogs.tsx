@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { proveedoresCol, ordenesCompraCol, dtesProveedorCol, useProveedores, siguienteNumeroOC } from '@/lib/data/compras';
+import { useProveedores, useCrearProveedor, useCrearOC, useCrearDteProveedor } from '@/lib/data/compras';
 
 const selectClass = 'mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm';
 
@@ -16,26 +16,30 @@ const EMPTY_PROV = { rut: '', razonSocial: '', giro: '', contactoNombre: '', con
 export function NuevoProveedorDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [form, setForm] = useState(EMPTY_PROV);
   const [saving, setSaving] = useState(false);
+  const crearProveedor = useCrearProveedor();
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   React.useEffect(() => { if (open) setForm(EMPTY_PROV); }, [open]);
 
   async function crear() {
     if (!form.razonSocial.trim()) { toast.error('Ingrese la razón social'); return; }
     setSaving(true);
-    await proveedoresCol.create({
-      rut: form.rut.trim(),
-      razonSocial: form.razonSocial.trim(),
-      giro: form.giro.trim() || undefined,
-      contactoNombre: form.contactoNombre.trim() || undefined,
-      contactoEmail: form.contactoEmail.trim() || undefined,
-      contactoTelefono: form.contactoTelefono.trim() || undefined,
-      condicionPago: form.condicionPago,
-      activo: true,
-      fechaAlta: new Date(),
-    });
-    toast.success('Proveedor creado');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await crearProveedor.mutateAsync({
+        rut: form.rut.trim() || undefined,
+        razonSocial: form.razonSocial.trim(),
+        giro: form.giro.trim() || undefined,
+        contactoNombre: form.contactoNombre.trim() || undefined,
+        contactoEmail: form.contactoEmail.trim() || undefined,
+        contactoTelefono: form.contactoTelefono.trim() || undefined,
+        condicionPago: form.condicionPago,
+      });
+      toast.success('Proveedor creado');
+      onOpenChange(false);
+    } catch {
+      toast.error('Error al crear el proveedor');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -75,23 +79,27 @@ export function NuevaOCDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [proveedorId, setProveedorId] = useState('');
   const [total, setTotal] = useState('');
   const [saving, setSaving] = useState(false);
+  const crearOC = useCrearOC();
   React.useEffect(() => { if (open) { setProveedorId(''); setTotal(''); } }, [open]);
 
   async function crear() {
     const prov = proveedores.find((p) => p.id === proveedorId);
     if (!prov) { toast.error('Seleccione un proveedor'); return; }
     setSaving(true);
-    await ordenesCompraCol.create({
-      numero: await siguienteNumeroOC(),
-      proveedorRut: prov.rut,
-      proveedorNombre: prov.razonSocial,
-      estado: 'borrador',
-      fechaEmision: new Date(),
-      total: Number(total) || 0,
-    });
-    toast.success('Orden de compra creada');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await crearOC.mutateAsync({
+        proveedorId: prov.id,
+        proveedorRut: prov.rut,
+        proveedorNombre: prov.razonSocial,
+        total: Number(total) || 0,
+      });
+      toast.success('Orden de compra creada');
+      onOpenChange(false);
+    } catch {
+      toast.error('Error al crear la orden de compra');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -128,6 +136,7 @@ export function RegistrarDteProveedorDialog({ open, onOpenChange }: { open: bool
   const [folio, setFolio] = useState('');
   const [total, setTotal] = useState('');
   const [saving, setSaving] = useState(false);
+  const crearDte = useCrearDteProveedor();
   React.useEffect(() => { if (open) { setProveedorId(''); setFolio(''); setTotal(''); } }, [open]);
 
   async function crear() {
@@ -135,21 +144,21 @@ export function RegistrarDteProveedorDialog({ open, onOpenChange }: { open: bool
     if (!prov) { toast.error('Seleccione un proveedor'); return; }
     if (!folio.trim()) { toast.error('Ingrese el folio'); return; }
     setSaving(true);
-    const emision = new Date();
-    const limite = new Date(emision);
-    limite.setDate(limite.getDate() + 8);
-    await dtesProveedorCol.create({
-      folio: Number(folio) || 0,
-      proveedorRut: prov.rut,
-      proveedorNombre: prov.razonSocial,
-      fechaEmision: emision,
-      fechaLimiteAcuse: limite,
-      total: Number(total) || 0,
-      estado: 'pendiente_acuse',
-    });
-    toast.success('DTE de proveedor registrado');
-    setSaving(false);
-    onOpenChange(false);
+    try {
+      await crearDte.mutateAsync({
+        proveedorId: prov.id,
+        proveedorRut: prov.rut,
+        proveedorNombre: prov.razonSocial,
+        folio: Number(folio) || 0,
+        total: Number(total) || 0,
+      });
+      toast.success('DTE de proveedor registrado');
+      onOpenChange(false);
+    } catch {
+      toast.error('Error al registrar el DTE');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

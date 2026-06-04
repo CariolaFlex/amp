@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { productosCol, movimientosCol, calcEstado } from '@/lib/data/inventory';
-import { useSession } from 'next-auth/react';
+import { useCrearProducto } from '@/lib/data/inventory';
 
 interface Props {
   open: boolean;
@@ -17,10 +16,9 @@ interface Props {
 const EMPTY = { sku: '', nombre: '', categoria: '', unidad: 'un', precioVenta: '', costoPMP: '', stockInicial: '', stockMinimo: '' };
 
 export function NuevoProductoDialog({ open, onOpenChange }: Props) {
-  const { data: session } = useSession();
-  const user = session?.user;
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const crearProducto = useCrearProducto();
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   React.useEffect(() => { if (open) setForm(EMPTY); }, [open]);
@@ -30,37 +28,24 @@ export function NuevoProductoDialog({ open, onOpenChange }: Props) {
     if (!form.nombre.trim()) { toast.error('Ingrese el nombre del producto'); return; }
 
     setSaving(true);
-    const stockInicial = Number(form.stockInicial) || 0;
-    const stockMinimo = Number(form.stockMinimo) || 0;
-
-    const producto = await productosCol.create({
-      sku: form.sku.trim().toUpperCase(),
-      nombre: form.nombre.trim(),
-      categoria: form.categoria.trim() || 'Sin categoría',
-      precioVenta: Number(form.precioVenta) || 0,
-      costoPMP: Number(form.costoPMP) || 0,
-      stockDisponible: stockInicial,
-      stockReservado: 0,
-      stockMinimo,
-      unidad: form.unidad.trim() || 'un',
-      estado: calcEstado(stockInicial, stockMinimo),
-    });
-
-    if (stockInicial > 0) {
-      await movimientosCol.create({
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        tipo: 'entrada',
-        cantidad: stockInicial,
-        motivo: 'Stock inicial',
-        fecha: new Date(),
-        usuario: user?.name ?? 'Sistema',
+    try {
+      await crearProducto.mutateAsync({
+        sku: form.sku.trim().toUpperCase(),
+        nombre: form.nombre.trim(),
+        categoria: form.categoria.trim() || 'Sin categoría',
+        precioVenta: Number(form.precioVenta) || 0,
+        costoPMP: Number(form.costoPMP) || 0,
+        stockDisponible: Number(form.stockInicial) || 0,
+        stockMinimo: Number(form.stockMinimo) || 0,
+        unidad: form.unidad.trim() || 'un',
       });
+      toast.success('Producto creado');
+      onOpenChange(false);
+    } catch {
+      toast.error('Error al crear el producto');
+    } finally {
+      setSaving(false);
     }
-
-    toast.success('Producto creado');
-    setSaving(false);
-    onOpenChange(false);
   }
 
   return (
