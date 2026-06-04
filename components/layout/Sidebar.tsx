@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui.store';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -78,14 +78,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar, setMobileSidebarOpen } = useUIStore();
-  const user = useAuthStore((s) => s.getCurrentUser());
-  const contexto = useAuthStore((s) => s.contexto);
-  const logout = useAuthStore((s) => s.logout);
+  const { data: session } = useSession();
+  const user = session?.user;
+  const contexto = session?.user?.contexto;
 
-  const handleLogout = () => {
-    logout();
-    router.replace('/login');
-  };
+  const handleLogout = () => signOut({ callbackUrl: '/login' });
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === href || pathname === '/';
@@ -175,13 +172,13 @@ export function Sidebar() {
       <div className="border-t flex-shrink-0">
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center gap-2 py-3">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">{iniciales(user?.nombre ?? '')}</div>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">{iniciales(user?.name ?? '')}</div>
           </div>
         ) : (
           <div className="flex items-center gap-2.5 p-3">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">{iniciales(user?.nombre ?? '')}</div>
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">{iniciales(user?.name ?? '')}</div>
             <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium leading-snug">{user?.nombre ?? 'Usuario'}</p>
+              <p className="truncate text-sm font-medium leading-snug">{user?.name ?? 'Usuario'}</p>
               <p className="truncate text-xs leading-tight text-muted-foreground">
                 {user?.rol ?? '—'}{contexto ? ` · ${contexto.plataformaNombre}` : ''}
               </p>

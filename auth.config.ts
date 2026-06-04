@@ -49,12 +49,16 @@ export const authConfig: NextAuthConfig = {
       return true;
     },
 
-    /** Agrega campos custom al JWT (rol, empresaId, contexto) */
-    jwt({ token, user }) {
+    /** Agrega campos custom al JWT; también maneja update() del cliente */
+    jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.rol = (user as { rol?: string }).rol;
-        token.empresaId = (user as { empresaId?: string }).empresaId;
+        token.rol = user.rol;
+        token.empresaId = user.empresaId;
+      }
+      if (trigger === 'update') {
+        const ctx = (session as { contexto?: import('@/types').ContextoSesion })?.contexto;
+        if (ctx) token.contexto = ctx;
       }
       return token;
     },
@@ -63,8 +67,11 @@ export const authConfig: NextAuthConfig = {
     session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        (session.user as { rol?: string }).rol = token.rol as string;
-        (session.user as { empresaId?: string }).empresaId = token.empresaId as string;
+        session.user.rol = token.rol as string;
+        session.user.empresaId = token.empresaId as string;
+        if (token.contexto) {
+          session.user.contexto = token.contexto as import('@/types').ContextoSesion;
+        }
       }
       return session;
     },

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { productosCol, movimientosCol, calcEstado } from '@/lib/data/inventory';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession } from 'next-auth/react';
 
 interface Props {
   open: boolean;
@@ -17,7 +17,8 @@ interface Props {
 const EMPTY = { sku: '', nombre: '', categoria: '', unidad: 'un', precioVenta: '', costoPMP: '', stockInicial: '', stockMinimo: '' };
 
 export function NuevoProductoDialog({ open, onOpenChange }: Props) {
-  const user = useAuthStore((s) => s.getCurrentUser());
+  const { data: session } = useSession();
+  const user = session?.user;
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -53,7 +54,7 @@ export function NuevoProductoDialog({ open, onOpenChange }: Props) {
         cantidad: stockInicial,
         motivo: 'Stock inicial',
         fecha: new Date(),
-        usuario: user?.nombre ?? 'Sistema',
+        usuario: user?.name ?? 'Sistema',
       });
     }
 

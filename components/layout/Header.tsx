@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUIStore } from '@/store/ui.store';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession, signOut } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -73,9 +73,9 @@ export function Header() {
   const [showUser, setShowUser] = useState(false);
 
   const clientes = useClientes();
-  const user = useAuthStore((s) => s.getCurrentUser());
-  const contexto = useAuthStore((s) => s.contexto);
-  const logout = useAuthStore((s) => s.logout);
+  const { data: session } = useSession();
+  const user = session?.user;
+  const contexto = session?.user?.contexto;
 
   const crumbs = buildCrumbs(pathname ?? '', clientes);
 
@@ -83,10 +83,7 @@ export function Header() {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
   };
 
-  const handleLogout = () => {
-    logout();
-    router.replace('/login');
-  };
+  const handleLogout = () => signOut({ callbackUrl: '/login' });
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur">
@@ -140,15 +137,15 @@ export function Header() {
         {/* User */}
         <div className="relative ml-1">
           <button onClick={() => setShowUser((v) => !v)} className={cn('flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted', showUser && 'bg-muted')}>
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{iniciales(user?.nombre ?? '')}</div>
-            <span className="hidden font-medium md:block">{user?.nombre ?? 'Usuario'}</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{iniciales(user?.name ?? '')}</div>
+            <span className="hidden font-medium md:block">{user?.name ?? 'Usuario'}</span>
           </button>
           {showUser && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowUser(false)} />
               <div className="absolute right-0 z-50 mt-1.5 w-56 rounded-lg border bg-card shadow-lg">
                 <div className="border-b px-3 py-2.5">
-                  <p className="text-sm font-medium">{user?.nombre ?? 'Usuario'}</p>
+                  <p className="text-sm font-medium">{user?.name ?? 'Usuario'}</p>
                   <p className="text-xs text-muted-foreground">{user?.email ?? ''}</p>
                 </div>
                 <div className="p-1">

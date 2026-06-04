@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { registrarMovimiento } from '@/lib/data/inventory';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession } from 'next-auth/react';
 import type { Producto, MovimientoStock } from '@/types';
 
 const selectClass = 'mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm';
@@ -18,7 +18,8 @@ interface Props {
 }
 
 export function AjusteStockDialog({ producto, onClose }: Props) {
-  const user = useAuthStore((s) => s.getCurrentUser());
+  const { data: session } = useSession();
+  const user = session?.user;
   const [tipo, setTipo] = useState<MovimientoStock['tipo']>('entrada');
   const [cantidad, setCantidad] = useState('');
   const [motivo, setMotivo] = useState('');
@@ -33,7 +34,7 @@ export function AjusteStockDialog({ producto, onClose }: Props) {
     const n = Number(cantidad);
     if (!n || n === 0) { toast.error('Ingrese una cantidad distinta de 0'); return; }
     setSaving(true);
-    await registrarMovimiento(producto, tipo, n, motivo, user?.nombre ?? 'Sistema');
+    await registrarMovimiento(producto, tipo, n, motivo, user?.name ?? 'Sistema');
     toast.success('Movimiento registrado');
     setSaving(false);
     onClose();

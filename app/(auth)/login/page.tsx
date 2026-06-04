@@ -2,27 +2,24 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Building2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/auth.store';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
   const router = useRouter();
-  const login = useAuthStore((s) => s.login);
-  const hayCuentas = useAuthStore((s) => s.cuentas.length > 0);
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!email.trim() || !password) {
@@ -30,12 +27,16 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
-    const res = login(email, password);
-    if (res.ok) {
+    const res = await signIn('credentials', {
+      email,
+      password,
+      redirect: false,
+    });
+    if (res?.ok) {
       toast.success('Sesión iniciada');
       router.replace('/seleccionar-contexto');
     } else {
-      setError(res.error);
+      setError('Correo o contraseña incorrectos');
       setLoading(false);
     }
   };
@@ -103,17 +104,11 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {!hayCuentas && (
-              <p className="mt-4 rounded-md bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
-                Aún no hay cuentas. Crea la primera en <Link href="/registro" className="text-primary hover:underline">Registrarse</Link>.
-              </p>
-            )}
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              ¿No tienes cuenta? <Link href="/registro" className="text-primary hover:underline">Registrarse</Link>
+            </p>
           </CardContent>
         </Card>
-
-        <p className="text-center text-xs text-muted-foreground">
-          ¿No tienes cuenta? <Link href="/registro" className="text-primary hover:underline">Registrarse</Link>
-        </p>
       </div>
     </div>
   );

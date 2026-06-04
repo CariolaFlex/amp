@@ -2,31 +2,23 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession } from 'next-auth/react';
 import { Building2 } from 'lucide-react';
 
-/**
- * Protege las rutas del dashboard:
- *  - sin sesión        → /login
- *  - sesión sin contexto (plataforma/centro de costo) → /seleccionar-contexto
- * Espera a la rehidratación de localStorage para no redirigir en falso.
- */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const hydrated = useAuthStore((s) => s.hydrated);
-  const currentUserId = useAuthStore((s) => s.currentUserId);
-  const contexto = useAuthStore((s) => s.contexto);
+  const { data: session, status } = useSession();
 
   React.useEffect(() => {
-    if (!hydrated) return;
-    if (!currentUserId) {
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
       router.replace('/login');
-    } else if (!contexto) {
+    } else if (status === 'authenticated' && !session?.user?.contexto) {
       router.replace('/seleccionar-contexto');
     }
-  }, [hydrated, currentUserId, contexto, router]);
+  }, [status, session, router]);
 
-  const autorizado = hydrated && currentUserId && contexto;
+  const autorizado = status === 'authenticated' && !!session?.user?.contexto;
 
   if (!autorizado) {
     return (

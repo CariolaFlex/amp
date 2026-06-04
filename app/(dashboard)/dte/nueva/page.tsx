@@ -12,7 +12,7 @@ import { useProductos } from '@/lib/data/inventory';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
 import { cotizacionesCol, calcTotales, aplicaIva, siguienteNumeroCotizacion } from '@/lib/data/ventas';
 import { useOportunidad } from '@/lib/data/crm';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession } from 'next-auth/react';
 import { Plus, Trash2, ArrowLeft, Save, Send } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -39,7 +39,8 @@ export default function NuevaCotizacionPage() {
   const router = useRouter();
   const clientes = useClientes();
   const productos = useProductos();
-  const user = useAuthStore((s) => s.getCurrentUser());
+  const { data: session } = useSession();
+  const user = session?.user;
 
   const [oportunidadId, setOportunidadId] = useState<string | undefined>(undefined);
   const oportunidad = useOportunidad(oportunidadId);
@@ -103,7 +104,7 @@ export default function NuevaCotizacionPage() {
       notas: notas.trim() || undefined,
       estado,
       vendedorId: user?.id,
-      vendedorNombre: user?.nombre,
+      vendedorNombre: user?.name ?? undefined,
     });
     toast.success(estado === 'enviada' ? 'Cotización creada y enviada' : 'Cotización guardada como borrador');
     setSaving(false);

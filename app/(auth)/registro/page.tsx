@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Building2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { formatRut, validateRut } from '@/lib/utils/rut';
-import { useAuthStore } from '@/store/auth.store';
 import { toast } from 'sonner';
 
 export default function RegistroPage() {
   const router = useRouter();
-  const register = useAuthStore((s) => s.register);
 
   const [form, setForm] = useState({
     nombre: '',
@@ -30,7 +29,7 @@ export default function RegistroPage() {
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -41,20 +40,40 @@ export default function RegistroPage() {
     if (!form.empresaRut.trim() || !validateRut(form.empresaRut)) return setError('RUT de empresa inválido');
 
     setLoading(true);
-    const res = register({
-      nombre: `${form.nombre.trim()} ${form.apellido.trim()}`,
-      email: form.email,
-      password: form.password,
-      empresaNombre: form.empresaNombre,
-      empresaRut: form.empresaRut,
-      giro: form.giro,
-    });
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: `${form.nombre.trim()} ${form.apellido.trim()}`,
+          email: form.email,
+          password: form.password,
+          empresaNombre: form.empresaNombre,
+          empresaRut: form.empresaRut,
+          giro: form.giro,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Error al crear la cuenta');
+        setLoading(false);
+        return;
+      }
 
-    if (res.ok) {
-      toast.success('Cuenta creada');
-      router.replace('/seleccionar-contexto');
-    } else {
-      setError(res.error);
+      const login = await signIn('credentials', {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      });
+      if (login?.ok) {
+        toast.success('Cuenta creada');
+        router.replace('/seleccionar-contexto');
+      } else {
+        setError('Cuenta creada pero no se pudo iniciar sesión. Intenta hacer login.');
+        setLoading(false);
+      }
+    } catch {
+      setError('Error de conexión');
       setLoading(false);
     }
   };

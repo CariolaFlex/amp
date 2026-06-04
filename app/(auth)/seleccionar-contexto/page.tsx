@@ -1,88 +1,108 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Building2, Check, Layers, Plus, LogOut } from 'lucide-react';
-import { useAuthStore } from '@/store/auth.store';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { ContextoSesion } from '@/types';
+
+interface Plataforma { id: string; nombre: string; rut: string; }
+interface CentroCosto { id: string; plataformaId: string; codigo: string; nombre: string; activo: boolean; }
 
 export default function SeleccionarContextoPage() {
   const router = useRouter();
-  const hydrated = useAuthStore((s) => s.hydrated);
-  const currentUserId = useAuthStore((s) => s.currentUserId);
-  const cuentas = useAuthStore((s) => s.cuentas);
-  const plataformasAll = useAuthStore((s) => s.plataformas);
-  const centrosAll = useAuthStore((s) => s.centrosCosto);
-  const addCentroCosto = useAuthStore((s) => s.addCentroCosto);
-  const setContexto = useAuthStore((s) => s.setContexto);
-  const logout = useAuthStore((s) => s.logout);
+  const { data: session, status, update } = useSession();
 
-  const [plataformaId, setPlataformaId] = useState<string>('');
-  const [centroId, setCentroId] = useState<string>('');
+  const [plataformas, setPlataformas] = useState<Plataforma[]>([]);
+  const [centros, setCentros] = useState<CentroCosto[]>([]);
+  const [plataformaId, setPlataformaId] = useState('');
+  const [centroId, setCentroId] = useState('');
   const [nuevoCentro, setNuevoCentro] = useState('');
-
-  const user = useMemo(
-    () => cuentas.find((c) => c.id === currentUserId) ?? null,
-    [cuentas, currentUserId],
-  );
-  const plataformas = useMemo(
-    () => (user ? plataformasAll.filter((p) => p.empresaId === user.empresaId) : []),
-    [plataformasAll, user],
-  );
-  const centros = useMemo(
-    () => (plataformaId ? centrosAll.filter((c) => c.plataformaId === plataformaId && c.activo) : []),
-    [centrosAll, plataformaId],
-  );
+  const [loading, setLoading] = useState(false);
 
   // sin sesión → login
   useEffect(() => {
-    if (hydrated && !user) router.replace('/login');
-  }, [hydrated, user, router]);
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [status, router]);
 
-  // preseleccionar primera plataforma
+  // cargar plataformas al tener sesión
   useEffect(() => {
-    if (!plataformaId && plataformas.length > 0) setPlataformaId(plataformas[0].id);
-  }, [plataformas, plataformaId]);
+    if (status !== 'authenticated') return;
+    fetch('/api/plataformas')
+      .then((r) => r.json())
+      .then((data: Plataforma[]) => {
+        setPlataformas(data);
+        if (data.length > 0) setPlataformaId(data[0].id);
+      })
+      .catch(() => toast.error('Error al cargar plataformas'));
+  }, [status]);
 
-  // preseleccionar primer centro al cambiar de plataforma
+  // cargar centros al cambiar plataforma
   useEffect(() => {
-    setCentroId(centros[0]?.id ?? '');
-  }, [plataformaId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!plataformaId) return;
+    setCentros([]);
+    setCentroId('');
+    fetch(`/api/plataformas/${plataformaId}/centroscosto`)
+      .then((r) => r.json())
+      .then((data: CentroCosto[]) => {
+        setCentros(data);
+        if (data.length > 0) setCentroId(data[0].id);
+      })
+      .catch(() => toast.error('Error al cargar centros de costo'));
+  }, [plataformaId]);
 
-  const handleAddCentro = () => {
+  const handleAddCentro = async () => {
     if (!nuevoCentro.trim() || !plataformaId) return;
     const codigo = String(centros.length + 1).padStart(3, '0');
-    const centro = addCentroCosto(plataformaId, codigo, nuevoCentro.trim());
+    const res = await fetch(`/api/plataformas/${plataformaId}/centroscosto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, nombre: nuevoCentro.trim() }),
+    });
+    if (!res.ok) { toast.error('Error al crear centro de costo'); return; }
+    const centro: CentroCosto = await res.json();
+    setCentros((prev) => [...prev, centro]);
     setCentroId(centro.id);
     setNuevoCentro('');
     toast.success('Centro de costo agregado');
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!plataformaId || !centroId) {
       toast.error('Selecciona plataforma y centro de costo');
       return;
     }
-    const res = setContexto(plataformaId, centroId);
-    if (res.ok) {
-      router.replace('/dashboard');
-    } else {
-      toast.error(res.error);
-    }
+    const plataforma = plataformas.find((p) => p.id === plataformaId);
+    const centro = centros.find((c) => c.id === centroId);
+    if (!plataforma || !centro) return;
+
+    setLoading(true);
+    const contexto: ContextoSesion = {
+      plataformaId,
+      plataformaNombre: plataforma.nombre,
+      centroCostoId: centroId,
+      centroCostoNombre: centro.nombre,
+    };
+    await update({ contexto });
+    toast.success('Contexto seleccionado');
+    router.replace('/dashboard');
   };
 
-  if (!hydrated || !user) {
+  if (status === 'loading' || status === 'unauthenticated') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
         Cargando…
       </div>
     );
   }
+
+  const nombre = session?.user?.name ?? 'Usuario';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -94,7 +114,7 @@ export default function SeleccionarContextoPage() {
           <div className="text-center">
             <h1 className="text-xl font-bold">Selecciona tu contexto</h1>
             <p className="text-sm text-muted-foreground">
-              Hola {user.nombre.split(' ')[0]}, elige con qué plataforma y centro de costo trabajarás.
+              Hola {nombre.split(' ')[0]}, elige con qué plataforma y centro de costo trabajarás.
             </p>
           </div>
         </div>
@@ -106,6 +126,9 @@ export default function SeleccionarContextoPage() {
             </h2>
           </CardHeader>
           <CardContent className="space-y-2">
+            {plataformas.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2 text-center">Cargando…</p>
+            )}
             {plataformas.map((p) => (
               <button
                 key={p.id}
@@ -166,11 +189,11 @@ export default function SeleccionarContextoPage() {
         </Card>
 
         <div className="flex items-center gap-3">
-          <Button variant="ghost" className="text-muted-foreground" onClick={() => { logout(); router.replace('/login'); }}>
+          <Button variant="ghost" className="text-muted-foreground" onClick={() => signOut({ callbackUrl: '/login' })}>
             <LogOut className="mr-2 h-4 w-4" /> Salir
           </Button>
-          <Button className="flex-1" onClick={handleConfirm} disabled={!plataformaId || !centroId}>
-            Entrar al sistema
+          <Button className="flex-1" onClick={handleConfirm} disabled={!plataformaId || !centroId || loading}>
+            {loading ? 'Entrando…' : 'Entrar al sistema'}
           </Button>
         </div>
       </div>

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { oportunidadesCol } from '@/lib/data/crm';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession } from 'next-auth/react';
 import type { EtapaPipeline } from '@/types';
 
 const ETAPAS: { id: EtapaPipeline; label: string }[] = [
@@ -31,7 +31,8 @@ interface Props {
 
 export function NuevaOportunidadDialog({ open, onOpenChange, defaults, onCreated }: Props) {
   const clientes = useClientes();
-  const user = useAuthStore((s) => s.getCurrentUser());
+  const { data: session } = useSession();
+  const user = session?.user;
 
   const [titulo, setTitulo] = useState('');
   const [clienteId, setClienteId] = useState('');
@@ -71,7 +72,7 @@ export function NuevaOportunidadDialog({ open, onOpenChange, defaults, onCreated
       etapa,
       probabilidad: Math.max(0, Math.min(100, Number(probabilidad) || 0)),
       vendedorId: user?.id ?? '',
-      vendedorNombre: user?.nombre ?? 'Sin asignar',
+      vendedorNombre: user?.name ?? 'Sin asignar',
       ultimaActividad: new Date(),
       createdAt: new Date(),
       notas: notas.trim() || undefined,

@@ -10,7 +10,7 @@ import { useDtesProveedor } from '@/lib/data/compras';
 import { useOportunidades } from '@/lib/data/crm';
 import { useProductos } from '@/lib/data/inventory';
 import { useCuentasCobrar } from '@/lib/data/tesoreria';
-import { useAuthStore } from '@/store/auth.store';
+import { useSession } from 'next-auth/react';
 import {
   TrendingUp, TrendingDown, FileText, Package, AlertTriangle,
   Clock, CheckCircle2, XCircle, DollarSign,
@@ -70,7 +70,8 @@ export default function DashboardPage() {
   const oportunidades = useOportunidades();
   const productos = useProductos();
   const cxc = useCuentasCobrar();
-  const contexto = useAuthStore((s) => s.contexto);
+  const { data: session } = useSession();
+  const contexto = session?.user?.contexto;
 
   const now = new Date();
   const facturacionMes = dtes
