@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { VentasNav } from '@/components/dte/VentasNav';
-import { useOrdenesVenta, emitirDteDesdeOV } from '@/lib/data/ventas';
+import { useOrdenesVenta, emitirDteDesdeOV, anularOrdenVenta } from '@/lib/data/ventas';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,14 @@ export default function OrdenesVentaPage() {
     const dte = await emitirDteDesdeOV(ov);
     toast.success(`DTE folio #${dte.folio} emitido`);
     router.push('/dte');
+  }
+
+  async function handleAnular(ov: OrdenVenta) {
+    await anularOrdenVenta(ov);
+    const msg = ov.dteId
+      ? `OV ${ov.numero} anulada — DTE anulado y stock repuesto`
+      : `OV ${ov.numero} anulada — cotización vuelve a Aprobada`;
+    toast.success(msg);
   }
 
   return (
@@ -63,6 +71,9 @@ export default function OrdenesVentaPage() {
               )}
               {row.estado === 'facturada' && (
                 <DropdownMenuItem className="text-xs" asChild><Link href="/dte">Ver DTE emitido</Link></DropdownMenuItem>
+              )}
+              {(row.estado === 'pendiente' || row.estado === 'facturada') && (
+                <DropdownMenuItem className="text-xs text-destructive" onClick={() => handleAnular(row)}>Anular OV</DropdownMenuItem>
               )}
             </>
           )}

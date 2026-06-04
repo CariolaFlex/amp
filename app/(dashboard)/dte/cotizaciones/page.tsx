@@ -70,6 +70,7 @@ export default function CotizacionesPage() {
             <>
               {(row.estado === 'borrador' || row.estado === 'enviada') && (
                 <>
+                  <DropdownMenuItem className="text-xs" asChild><Link href={`/dte/cotizaciones/${row.id}/editar`}>Editar</Link></DropdownMenuItem>
                   <DropdownMenuItem className="text-xs" onClick={() => { aprobarCotizacion(row.id); toast.success('Cotización aprobada'); }}>Aprobar</DropdownMenuItem>
                   <DropdownMenuItem className="text-xs text-destructive" onClick={() => { rechazarCotizacion(row.id); toast('Cotización rechazada'); }}>Rechazar</DropdownMenuItem>
                 </>

@@ -53,7 +53,7 @@ export default function OportunidadDetallePage({ params }: { params: Promise<{ i
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" className="h-8 text-xs" onClick={() => router.push(`/dte/nueva?clienteRut=${encodeURIComponent(op.clienteRut)}`)}>
+        <Button size="sm" className="h-8 text-xs" onClick={() => router.push(`/dte/nueva?clienteRut=${encodeURIComponent(op.clienteRut)}&oportunidadId=${encodeURIComponent(op.id)}`)}>
           <FileText className="mr-1 h-3.5 w-3.5" />Crear cotización
         </Button>
         {op.etapa !== 'ganada' && (

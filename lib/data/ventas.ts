@@ -24,6 +24,33 @@ export function useCotizacion(id: string | undefined) { return useCollectionItem
 export async function marcarDtePagado(id: string) { await dtesCol.update(id, { estado: 'pagado' }); }
 export async function anularDte(id: string) { await dtesCol.update(id, { estado: 'anulado' }); }
 
+export async function actualizarCotizacion(
+  id: string,
+  patch: Partial<Pick<Cotizacion, 'tipoDte' | 'condicionPago' | 'lineas' | 'notas' | 'neto' | 'iva' | 'total' | 'clienteId' | 'clienteNombre' | 'clienteRut' | 'estado'>>,
+) {
+  await cotizacionesCol.update(id, patch);
+}
+
+/** Anula una OV: revierte cotización a 'aprobada' y, si ya tenía DTE, anula el DTE y repone stock. */
+export async function anularOrdenVenta(ov: OrdenVenta) {
+  await ordenesVentaCol.update(ov.id, { estado: 'anulada' });
+  if (ov.cotizacionId) {
+    await cotizacionesCol.update(ov.cotizacionId, { estado: 'aprobada', ordenVentaId: undefined });
+  }
+  if (ov.dteId) {
+    await dtesCol.update(ov.dteId, { estado: 'anulado' });
+    if (ov.tipoDte !== 61) {
+      for (const linea of ov.lineas) {
+        if (!linea.productoId) continue;
+        const producto = await productosCol.getById(linea.productoId);
+        if (producto) {
+          await registrarMovimiento(producto, 'entrada', linea.cantidad, `Anulación ${ov.numero}`, 'Sistema');
+        }
+      }
+    }
+  }
+}
+
 /** IVA aplica a Factura Afecta (33) y Boleta (39). El resto es exento. */
 export function aplicaIva(tipo: TipoDte): boolean {
   return tipo === 33 || tipo === 39;

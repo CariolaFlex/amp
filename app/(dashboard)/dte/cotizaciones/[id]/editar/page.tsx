@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatCLP } from '@/lib/utils/clp';
 import { useProductos } from '@/lib/data/inventory';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
-import { cotizacionesCol, calcTotales, aplicaIva, siguienteNumeroCotizacion } from '@/lib/data/ventas';
-import { useOportunidad } from '@/lib/data/crm';
-import { useAuthStore } from '@/store/auth.store';
+import { useCotizacion, actualizarCotizacion, calcTotales, aplicaIva } from '@/lib/data/ventas';
 import { Plus, Trash2, ArrowLeft, Save, Send } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -28,84 +26,80 @@ const TIPOS_DTE = [
 
 interface LineaEdit { id: string; descripcion: string; cantidad: number; precioUnitario: number; descuento: number; productoId?: string; }
 
-const lineaVacia = (): LineaEdit => ({ id: genId(), descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0 });
-
 function toLineaDte(l: LineaEdit): LineaDte {
   const total = Math.round(l.cantidad * l.precioUnitario * (1 - l.descuento / 100));
   return { id: l.id, descripcion: l.descripcion, cantidad: l.cantidad, precioUnitario: l.precioUnitario, descuento: l.descuento, total, productoId: l.productoId };
 }
 
-export default function NuevaCotizacionPage() {
+function fromLineaDte(l: LineaDte): LineaEdit {
+  return { id: l.id, descripcion: l.descripcion, cantidad: l.cantidad, precioUnitario: l.precioUnitario, descuento: l.descuento, productoId: l.productoId };
+}
+
+export default function EditarCotizacionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
+  const cotizacion = useCotizacion(id);
   const clientes = useClientes();
   const productos = useProductos();
-  const user = useAuthStore((s) => s.getCurrentUser());
 
-  const [oportunidadId, setOportunidadId] = useState<string | undefined>(undefined);
-  const oportunidad = useOportunidad(oportunidadId);
-
+  const [ready, setReady] = useState(false);
   const [tipoDte, setTipoDte] = useState('33');
   const [clienteId, setClienteId] = useState('');
-  const [clienteManual, setClienteManual] = useState({ nombre: '', rut: '' });
   const [condicionPago, setCondicionPago] = useState('30');
-  const [lineas, setLineas] = useState<LineaEdit[]>([lineaVacia()]);
+  const [lineas, setLineas] = useState<LineaEdit[]>([]);
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
-  const [opPrefilled, setOpPrefilled] = useState(false);
+
+  useEffect(() => {
+    if (!cotizacion || ready) return;
+    setTipoDte(String(cotizacion.tipoDte));
+    setClienteId(cotizacion.clienteId ?? '');
+    setCondicionPago(cotizacion.condicionPago ?? '30');
+    setLineas(cotizacion.lineas.map(fromLineaDte));
+    setNotas(cotizacion.notas ?? '');
+    setReady(true);
+  }, [cotizacion, ready]);
+
+  if (!cotizacion) {
+    return <div className="p-12 text-center text-sm text-muted-foreground">Cotización no encontrada</div>;
+  }
+  if (cotizacion.estado !== 'borrador' && cotizacion.estado !== 'enviada') {
+    return (
+      <div className="flex flex-col items-center gap-4 p-12 text-center">
+        <p className="text-sm text-muted-foreground">No se puede editar una cotización en estado <Badge variant="muted">{cotizacion.estado}</Badge></p>
+        <Button variant="outline" size="sm" asChild><Link href="/dte/cotizaciones"><ArrowLeft className="mr-1 h-4 w-4" />Volver</Link></Button>
+      </div>
+    );
+  }
 
   const tipoNum = Number(tipoDte) as TipoDte;
   const lineasDte = lineas.map(toLineaDte);
   const { neto, iva, total } = calcTotales(lineasDte, tipoNum);
-
   const cli = clientes.find((c) => c.id === clienteId);
 
-  // Prefill desde query params al llegar desde CRM/ficha cliente
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const rut = params.get('clienteRut');
-    const opId = params.get('oportunidadId');
-    if (opId) setOportunidadId(opId);
-    if (rut && clientes.length > 0 && !clienteId) {
-      const match = clientes.find((c) => c.rut === rut);
-      if (match) setClienteId(match.id);
-    }
-  }, [clientes, clienteId]);
+  const addLinea = () => setLineas((p) => [...p, { id: genId(), descripcion: '', cantidad: 1, precioUnitario: 0, descuento: 0 }]);
+  const removeLinea = (lid: string) => setLineas((p) => p.filter((l) => l.id !== lid));
+  const updateLinea = (lid: string, field: keyof LineaEdit, value: string | number) =>
+    setLineas((p) => p.map((l) => (l.id === lid ? { ...l, [field]: value } : l)));
 
-  // Prefill una línea con el título y monto de la oportunidad (una sola vez)
-  React.useEffect(() => {
-    if (!oportunidad || opPrefilled) return;
-    setLineas([{ id: genId(), descripcion: oportunidad.titulo, cantidad: 1, precioUnitario: oportunidad.monto, descuento: 0 }]);
-    setOpPrefilled(true);
-  }, [oportunidad, opPrefilled]);
-
-  const addLinea = () => setLineas((p) => [...p, lineaVacia()]);
-  const removeLinea = (id: string) => setLineas((p) => p.filter((l) => l.id !== id));
-  const updateLinea = (id: string, field: keyof LineaEdit, value: string | number) =>
-    setLineas((p) => p.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
-
-  async function guardar(estado: EstadoCotizacion) {
-    const clienteNombre = cli ? nombreCliente(cli) : clienteManual.nombre.trim();
-    const clienteRut = cli ? (cli.rut ?? '') : clienteManual.rut.trim();
+  async function guardar(nuevoEstado: EstadoCotizacion) {
+    const clienteNombre = cli ? nombreCliente(cli) : cotizacion!.clienteNombre;
+    const clienteRut = cli ? (cli.rut ?? '') : cotizacion!.clienteRut;
     if (!clienteNombre) { toast.error('Seleccione o ingrese el cliente'); return; }
-    if (lineasDte.every((l) => !l.descripcion.trim())) { toast.error('Agregue al menos una línea con descripción'); return; }
-
+    if (lineasDte.every((l) => !l.descripcion.trim())) { toast.error('Agregue al menos una línea'); return; }
     setSaving(true);
-    await cotizacionesCol.create({
-      numero: await siguienteNumeroCotizacion(),
+    await actualizarCotizacion(id, {
+      tipoDte: tipoNum,
       clienteId: cli?.id,
       clienteNombre,
       clienteRut,
-      tipoDte: tipoNum,
-      fechaEmision: new Date(),
       condicionPago,
       lineas: lineasDte.filter((l) => l.descripcion.trim()),
       neto, iva, total,
       notas: notas.trim() || undefined,
-      estado,
-      vendedorId: user?.id,
-      vendedorNombre: user?.nombre,
+      estado: nuevoEstado,
     });
-    toast.success(estado === 'enviada' ? 'Cotización creada y enviada' : 'Cotización guardada como borrador');
+    toast.success('Cotización actualizada');
     setSaving(false);
     router.push('/dte/cotizaciones');
   }
@@ -117,8 +111,8 @@ export default function NuevaCotizacionPage() {
           <Link href="/dte/cotizaciones"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
-          <h1 className="text-xl font-bold">Nueva Cotización</h1>
-          <p className="text-sm text-muted-foreground">Flujo: Cotización → Orden de Venta → DTE</p>
+          <h1 className="text-xl font-bold">Editando {cotizacion.numero}</h1>
+          <p className="text-sm text-muted-foreground">{cotizacion.clienteNombre}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => guardar('borrador')} disabled={saving}>
@@ -166,10 +160,7 @@ export default function NuevaCotizacionPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input value={clienteManual.nombre} onChange={(e) => setClienteManual((s) => ({ ...s, nombre: e.target.value }))} placeholder="Nombre cliente" className="h-9 text-sm" />
-                    <Input value={clienteManual.rut} onChange={(e) => setClienteManual((s) => ({ ...s, rut: e.target.value }))} placeholder="RUT" className="h-9 font-mono text-sm" />
-                  </div>
+                  <p className="text-xs text-muted-foreground">{cotizacion.clienteNombre} ({cotizacion.clienteRut})</p>
                 )}
               </div>
             </CardContent>
@@ -215,7 +206,7 @@ export default function NuevaCotizacionPage() {
             <CardContent className="p-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Notas / Observaciones</label>
-                <textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Condiciones especiales, referencias de proyecto, etc." rows={3} className="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} className="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
             </CardContent>
           </Card>
@@ -245,7 +236,7 @@ export default function NuevaCotizacionPage() {
             <CardHeader className="pb-2"><CardTitle className="text-xs font-semibold text-muted-foreground">AGREGAR PRODUCTO</CardTitle></CardHeader>
             <CardContent className="p-3 pt-0">
               {productos.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">No hay productos. Créalos en Inventario.</p>
+                <p className="px-1 text-xs text-muted-foreground">No hay productos en inventario.</p>
               ) : (
                 <div className="max-h-48 space-y-1 overflow-y-auto">
                   {productos.slice(0, 12).map((p) => (
