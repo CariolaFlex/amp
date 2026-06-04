@@ -10,7 +10,8 @@ import sql from 'mssql';
  */
 
 const config: sql.config = {
-  server: process.env.MSSQL_SERVER ?? 'localhost\\SQLEXPRESS',
+  server: process.env.MSSQL_SERVER ?? 'localhost',
+  port: process.env.MSSQL_PORT ? parseInt(process.env.MSSQL_PORT) : 1433,
   database: process.env.MSSQL_DATABASE ?? 'AmpueroERP',
   authentication: {
     type: 'default',
@@ -42,15 +43,21 @@ export async function getPool(): Promise<sql.ConnectionPool> {
   if (_connecting) return _connecting;
 
   _connecting = (async () => {
-    _pool = new sql.ConnectionPool(config);
-    _pool.on('error', (err) => {
-      console.error('[mssql] pool error:', err);
+    try {
+      _pool = new sql.ConnectionPool(config);
+      _pool.on('error', (err) => {
+        console.error('[mssql] pool error:', err);
+        _pool = null;
+        _connecting = null;
+      });
+      await _pool.connect();
+      _connecting = null;
+      return _pool;
+    } catch (err) {
       _pool = null;
       _connecting = null;
-    });
-    await _pool.connect();
-    _connecting = null;
-    return _pool;
+      throw err;
+    }
   })();
 
   return _connecting;
