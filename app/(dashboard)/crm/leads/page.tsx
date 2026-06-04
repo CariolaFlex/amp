@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useLeads, leadsCol } from '@/lib/data/crm';
+import { useLeads } from '@/lib/data/crm';
+import { useQueryClient } from '@tanstack/react-query';
 import { NuevoLeadDialog } from '@/components/crm/NuevoLeadDialog';
 import { NuevaOportunidadDialog } from '@/components/crm/NuevaOportunidadDialog';
 import { formatDate } from '@/lib/utils/dates';
@@ -15,11 +16,13 @@ import type { Lead } from '@/types';
 
 export default function LeadsPage() {
   const leads = useLeads();
+  const qc = useQueryClient();
   const [leadOpen, setLeadOpen] = useState(false);
   const [convertir, setConvertir] = useState<Lead | null>(null);
 
   async function eliminar(lead: Lead) {
-    await leadsCol.remove(lead.id);
+    await fetch(`/api/leads/${lead.id}`, { method: 'DELETE' });
+    void qc.invalidateQueries({ queryKey: ['leads'] });
     toast.success('Lead eliminado');
   }
 

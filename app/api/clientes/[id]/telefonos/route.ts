@@ -1,5 +1,57 @@
-export const dynamic = "force-dynamic";
-export async function GET() { return Response.json({ status: "not_implemented" }, { status: 501 }); }
-export async function POST() { return Response.json({ status: "not_implemented" }, { status: 501 }); }
-export async function PUT() { return Response.json({ status: "not_implemented" }, { status: 501 }); }
-export async function DELETE() { return Response.json({ status: "not_implemented" }, { status: 501 }); }
+import { auth } from '@/auth';
+import { getPool, sql } from '@/lib/db/mssql';
+import { randomUUID } from 'crypto';
+import { z } from 'zod';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id: clienteId } = await params;
+  const pool = await getPool();
+  const result = await pool.request()
+    .input('clienteId', sql.NVarChar(36), clienteId)
+    .execute('sp_telefonos_list');
+
+  return Response.json(result.recordset);
+}
+
+const schema = z.object({
+  tipo: z.string().default('Celular'),
+  telefono: z.string().min(1),
+  formaIngreso: z.enum(['manual', 'web_form', 'api']).default('manual'),
+  observacion: z.string().optional(),
+  esPreferido: z.boolean().default(false),
+  noDeseaPromociones: z.boolean().default(false),
+});
+
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id: clienteId } = await params;
+  const body = await req.json();
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return Response.json({ error: 'Datos inválidos' }, { status: 400 });
+
+  const d = parsed.data;
+  const id = randomUUID();
+  const pool = await getPool();
+
+  await pool.request()
+    .input('id', sql.NVarChar(36), id)
+    .input('clienteId', sql.NVarChar(36), clienteId)
+    .input('tipo', sql.NVarChar(50), d.tipo)
+    .input('telefono', sql.NVarChar(30), d.telefono)
+    .input('formaIngreso', sql.NVarChar(50), d.formaIngreso)
+    .input('observacion', sql.NVarChar(300), d.observacion ?? null)
+    .input('esPreferido', sql.Bit, d.esPreferido)
+    .input('noDeseaPromociones', sql.Bit, d.noDeseaPromociones)
+    .input('fechaAlta', sql.DateTime2, new Date())
+    .input('ultimoContacto', sql.DateTime2, null)
+    .execute('sp_telefonos_create');
+
+  return Response.json({ id, clienteId, ...d, fechaAlta: new Date() }, { status: 201 });
+}

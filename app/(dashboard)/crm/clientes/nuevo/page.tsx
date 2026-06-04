@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { validarRut, formatearRut } from '@/lib/validators/rut';
-import { clientesCol } from '@/lib/data/clientes';
+import { useCrearCliente } from '@/lib/data/clientes';
 import type { ClienteMaestro, TipoContribuyente } from '@/types';
 
 const ESTADOS_CIVILES = ['Soltero/a', 'Casado/a', 'Divorciado/a', 'Viudo/a', 'Conviviente civil'];
@@ -52,6 +52,7 @@ function calcularEdad(iso: string): number | undefined {
 
 export default function NuevoClientePage() {
   const router = useRouter();
+  const crearCliente = useCrearCliente();
   const [tipo, setTipo] = useState<TipoContribuyente>('persona_natural');
   const [form, setForm] = useState<FormState>(EMPTY);
   const [rutError, setRutError] = useState('');
@@ -84,12 +85,10 @@ export default function NuevoClientePage() {
     }
 
     setSaving(true);
-    const count = (await clientesCol.list()).length;
-
-    const nuevo: Omit<ClienteMaestro, 'id'> = {
+    const result = await crearCliente.mutateAsync({
       tipo,
       rut: form.rut || undefined,
-      idCliente: String(10001 + count),
+      idCliente: String(Date.now()),
       fechaAlta: new Date(),
       noDeseaPromociones: false,
       ...(tipo === 'persona_natural'
@@ -109,11 +108,9 @@ export default function NuevoClientePage() {
             razonSocial: form.razonSocial.trim() || form.nombreEmpresa.trim(),
             giro: form.giro.trim() || undefined,
           }),
-    };
-
-    const created = await clientesCol.create(nuevo);
+    });
     toast.success('Cliente creado correctamente');
-    router.push(`/crm/clientes/${created.id}`);
+    router.push(`/crm/clientes/${result.id}`);
   }
 
   return (

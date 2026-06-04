@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { leadsCol } from '@/lib/data/crm';
+import { useCrearLead } from '@/lib/data/crm';
 
 const FUENTES = ['Referido', 'Web', 'LinkedIn', 'Redes sociales', 'Llamada en frío', 'Evento', 'Otro'];
 const selectClass = 'mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm';
@@ -17,6 +17,7 @@ interface Props {
 }
 
 export function NuevoLeadDialog({ open, onOpenChange }: Props) {
+  const crearLead = useCrearLead();
   const [form, setForm] = useState({ nombre: '', empresa: '', rut: '', email: '', telefono: '', fuente: 'Referido' });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -28,14 +29,13 @@ export function NuevoLeadDialog({ open, onOpenChange }: Props) {
   async function handleCrear() {
     if (!form.nombre.trim()) { toast.error('Ingrese el nombre del lead'); return; }
     setSaving(true);
-    await leadsCol.create({
+    await crearLead.mutateAsync({
       nombre: form.nombre.trim(),
       empresa: form.empresa.trim(),
       rut: form.rut.trim() || undefined,
       email: form.email.trim() || undefined,
       telefono: form.telefono.trim() || undefined,
       fuente: form.fuente,
-      createdAt: new Date(),
     });
     toast.success('Lead creado');
     setSaving(false);

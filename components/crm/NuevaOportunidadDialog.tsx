@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { oportunidadesCol } from '@/lib/data/crm';
+import { useCrearOportunidad } from '@/lib/data/crm';
 import { useClientes, nombreCliente } from '@/lib/data/clientes';
 import { useSession } from 'next-auth/react';
 import type { EtapaPipeline } from '@/types';
@@ -33,6 +33,7 @@ export function NuevaOportunidadDialog({ open, onOpenChange, defaults, onCreated
   const clientes = useClientes();
   const { data: session } = useSession();
   const user = session?.user;
+  const crearOportunidad = useCrearOportunidad();
 
   const [titulo, setTitulo] = useState('');
   const [clienteId, setClienteId] = useState('');
@@ -64,7 +65,7 @@ export function NuevaOportunidadDialog({ open, onOpenChange, defaults, onCreated
     if (!clienteNombre) { toast.error('Seleccione o ingrese el cliente'); return; }
 
     setSaving(true);
-    const created = await oportunidadesCol.create({
+    const result = await crearOportunidad.mutateAsync({
       titulo: titulo.trim(),
       clienteNombre,
       clienteRut,
@@ -73,14 +74,12 @@ export function NuevaOportunidadDialog({ open, onOpenChange, defaults, onCreated
       probabilidad: Math.max(0, Math.min(100, Number(probabilidad) || 0)),
       vendedorId: user?.id ?? '',
       vendedorNombre: user?.name ?? 'Sin asignar',
-      ultimaActividad: new Date(),
-      createdAt: new Date(),
       notas: notas.trim() || undefined,
     });
     toast.success('Oportunidad creada');
     setSaving(false);
     onOpenChange(false);
-    onCreated?.(created.id);
+    onCreated?.(result.id);
   }
 
   return (

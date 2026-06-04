@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useOportunidades, oportunidadesCol } from '@/lib/data/crm';
+import { useOportunidades, setEtapaOportunidad } from '@/lib/data/crm';
+import { useQueryClient } from '@tanstack/react-query';
 import { NuevaOportunidadDialog } from '@/components/crm/NuevaOportunidadDialog';
 import { formatCLP } from '@/lib/utils/clp';
 import { daysDiff } from '@/lib/utils/dates';
@@ -106,6 +107,7 @@ function KanbanColumn({ etapa, ops }: { etapa: typeof ETAPAS[number]; ops: Oport
 export default function CrmPage() {
   const pathname = usePathname();
   const ops = useOportunidades();
+  const qc = useQueryClient();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<'kanban' | 'lista'>('kanban');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -124,7 +126,8 @@ export default function CrmPage() {
     const targetOp = ops.find(o => o.id === over.id);
     if (!sourceOp || !targetOp) { setActiveId(null); return; }
     if (sourceOp.etapa !== targetOp.etapa) {
-      void oportunidadesCol.update(sourceOp.id, { etapa: targetOp.etapa, ultimaActividad: new Date() });
+      void setEtapaOportunidad(sourceOp.id, targetOp.etapa as EtapaPipeline)
+        .then(() => qc.invalidateQueries({ queryKey: ['oportunidades'] }));
     }
     setActiveId(null);
   }

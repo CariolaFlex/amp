@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -15,15 +16,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
-  clientesCol,
-  direccionesCol,
-  telefonosCol,
-  emailsCol,
   useCliente,
   useClientes,
   useDireccionesByCliente,
   useTelefonosByCliente,
   useEmailsByCliente,
+  useActualizarCliente,
+  useCrearDireccion,
+  useActualizarDireccion,
+  useEliminarDireccion,
+  useCrearTelefono,
+  useActualizarTelefono,
+  useEliminarTelefono,
+  useCrearEmail,
+  useActualizarEmail,
+  useEliminarEmail,
   nombreCliente,
 } from '@/lib/data/clientes';
 import { REGIONES_CHILE, getComunasByRegion } from '@/lib/data/chile-geo';
@@ -335,7 +342,10 @@ function TabDatos({
 
 /* ── Tab Direcciones ──────────────────────────────────────── */
 function TabDirecciones({ clienteId }: { clienteId: string }) {
+  const qc = useQueryClient();
   const dirs = useDireccionesByCliente(clienteId);
+  const crearDir = useCrearDireccion(clienteId);
+  const eliminarDir = useEliminarDireccion(clienteId);
   const [editando, setEditando] = useState<DireccionCliente | null>(null);
   const [esNuevo, setEsNuevo] = useState(false);
 
@@ -354,18 +364,15 @@ function TabDirecciones({ clienteId }: { clienteId: string }) {
   async function guardarDireccion() {
     if (!editando) return;
     if (!editando.calle.trim()) { toast.error('Ingrese la calle'); return; }
-    if (editando.esPreferida) {
-      for (const d of dirs) {
-        if (d.id !== editando.id && d.esPreferida) await direccionesCol.update(d.id, { esPreferida: false });
-      }
-    }
+    const { id: _omit, clienteId: _cid, ...data } = editando;
+    void _omit; void _cid;
     if (esNuevo) {
-      const { id: _omit, ...data } = editando;
-      void _omit;
-      await direccionesCol.create(data);
+      await crearDir.mutateAsync(data);
       toast.success('Dirección agregada');
     } else {
-      await direccionesCol.update(editando.id, editando);
+      await fetch(`/api/clientes/${clienteId}/direcciones/${editando.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
       toast.success('Dirección actualizada');
     }
     setEditando(null);
@@ -373,13 +380,14 @@ function TabDirecciones({ clienteId }: { clienteId: string }) {
   }
 
   async function marcarPreferida(id: string) {
-    for (const d of dirs) {
-      if (d.esPreferida !== (d.id === id)) await direccionesCol.update(d.id, { esPreferida: d.id === id });
-    }
+    await fetch(`/api/clientes/${clienteId}/direcciones/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ esPreferida: true }),
+    });
+    void qc.invalidateQueries({ queryKey: ['direcciones', clienteId] });
   }
 
   async function eliminar(id: string) {
-    await direccionesCol.remove(id);
+    await eliminarDir.mutateAsync(id);
     toast.success('Dirección eliminada');
   }
 
@@ -482,7 +490,10 @@ function TabDirecciones({ clienteId }: { clienteId: string }) {
 
 /* ── Tab Teléfonos ────────────────────────────────────────── */
 function TabTelefonos({ clienteId }: { clienteId: string }) {
+  const qc = useQueryClient();
   const tels = useTelefonosByCliente(clienteId);
+  const crearTel = useCrearTelefono(clienteId);
+  const eliminarTel = useEliminarTelefono(clienteId);
   const [editando, setEditando] = useState<TelefonoCliente | null>(null);
   const [esNuevo, setEsNuevo] = useState(false);
 
@@ -497,24 +508,27 @@ function TabTelefonos({ clienteId }: { clienteId: string }) {
   async function guardar() {
     if (!editando) return;
     if (!editando.telefono.trim()) { toast.error('Ingrese el teléfono'); return; }
-    if (editando.esPreferido) {
-      for (const t of tels) if (t.id !== editando.id && t.esPreferido) await telefonosCol.update(t.id, { esPreferido: false });
-    }
+    const { id: _o, clienteId: _cid, ...data } = editando; void _o; void _cid;
     if (esNuevo) {
-      const { id: _o, ...data } = editando; void _o;
-      await telefonosCol.create(data);
+      await crearTel.mutateAsync(data);
       toast.success('Teléfono agregado');
     } else {
-      await telefonosCol.update(editando.id, editando);
+      await fetch(`/api/clientes/${clienteId}/telefonos/${editando.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      void qc.invalidateQueries({ queryKey: ['telefonos', clienteId] });
       toast.success('Teléfono actualizado');
     }
     setEditando(null); setEsNuevo(false);
   }
 
   async function marcarPreferido(id: string) {
-    for (const t of tels) if (t.esPreferido !== (t.id === id)) await telefonosCol.update(t.id, { esPreferido: t.id === id });
+    await fetch(`/api/clientes/${clienteId}/telefonos/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ esPreferido: true }),
+    });
+    void qc.invalidateQueries({ queryKey: ['telefonos', clienteId] });
   }
-  async function eliminar(id: string) { await telefonosCol.remove(id); toast.success('Teléfono eliminado'); }
+  async function eliminar(id: string) { await eliminarTel.mutateAsync(id); toast.success('Teléfono eliminado'); }
 
   return (
     <div className="space-y-6">
@@ -599,7 +613,10 @@ function TabTelefonos({ clienteId }: { clienteId: string }) {
 
 /* ── Tab Email ────────────────────────────────────────────── */
 function TabEmail({ clienteId }: { clienteId: string }) {
+  const qc = useQueryClient();
   const emails = useEmailsByCliente(clienteId);
+  const crearEmail = useCrearEmail(clienteId);
+  const eliminarEmail = useEliminarEmail(clienteId);
   const [editando, setEditando] = useState<EmailCliente | null>(null);
   const [esNuevo, setEsNuevo] = useState(false);
   const [confirmacion, setConfirmacion] = useState('');
@@ -614,24 +631,27 @@ function TabEmail({ clienteId }: { clienteId: string }) {
   async function guardar() {
     if (!editando) return;
     if (!validarEmail(editando.email)) { setEmailError('Email inválido'); return; }
-    if (editando.email !== confirmacion) { setEmailError('Los emails no coinciden'); return; }
-    if (editando.esPreferido) {
-      for (const e of emails) if (e.id !== editando.id && e.esPreferido) await emailsCol.update(e.id, { esPreferido: false });
-    }
+    if (editando.email !== confirmacion && esNuevo) { setEmailError('Los emails no coinciden'); return; }
+    const { id: _o, clienteId: _cid, ...data } = editando; void _o; void _cid;
     if (esNuevo) {
-      const { id: _o, ...data } = editando; void _o;
-      await emailsCol.create(data);
+      await crearEmail.mutateAsync(data);
       toast.success('Email agregado');
     } else {
-      await emailsCol.update(editando.id, editando);
+      await fetch(`/api/clientes/${clienteId}/emails/${editando.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      void qc.invalidateQueries({ queryKey: ['emails', clienteId] });
       toast.success('Email actualizado');
     }
     setEditando(null); setEsNuevo(false);
   }
   async function marcarPreferido(id: string) {
-    for (const e of emails) if (e.esPreferido !== (e.id === id)) await emailsCol.update(e.id, { esPreferido: e.id === id });
+    await fetch(`/api/clientes/${clienteId}/emails/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ esPreferido: true }),
+    });
+    void qc.invalidateQueries({ queryKey: ['emails', clienteId] });
   }
-  async function eliminar(id: string) { await emailsCol.remove(id); toast.success('Email eliminado'); }
+  async function eliminar(id: string) { await eliminarEmail.mutateAsync(id); toast.success('Email eliminado'); }
 
   return (
     <div className="space-y-6">
@@ -726,6 +746,7 @@ export default function FichaClientePage({ params }: { params: Promise<{ id: str
 
   const cliente = useCliente(id);
   const todosClientes = useClientes();
+  const actualizarCliente = useActualizarCliente(id);
 
   const [form, setForm] = useState<DatosForm | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -752,7 +773,7 @@ export default function FichaClientePage({ params }: { params: Promise<{ id: str
 
   async function handleGuardar() {
     if (!cliente || !form) return;
-    await clientesCol.update(cliente.id, formToPatch(form));
+    await actualizarCliente.mutateAsync(formToPatch(form));
     toast.success('Cliente guardado correctamente');
   }
 
