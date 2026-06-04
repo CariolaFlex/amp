@@ -1,86 +1,129 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { formatRut } from '@/lib/utils/rut';
 import {
   Building2, Shield, FileText, BookOpen, Server,
   CheckCircle2, Upload, ChevronRight, ChevronLeft,
-  Check, AlertTriangle,
+  Check, AlertTriangle, Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+
+// ── Tipos ──────────────────────────────────────────────────────────────────
+
+interface EmpresaState {
+  rut: string; razonSocial: string; giro: string;
+  direccion: string; comuna: string; ciudad: string;
+  actividadEconomica: string;
+}
+interface PfxState    { file: File | null; uploaded: boolean }
+interface CafState    { tipoDte: number; desde: number; hasta: number; nombre: string }
+interface ConfigState { tiposDte: { codigo: number; nombre: string; activo: boolean }[]; ambiente: 'certificacion' | 'produccion' }
 
 const PASOS = [
-  { id: 1, label: 'Empresa', icon: Building2, desc: 'Datos tributarios' },
-  { id: 2, label: 'Certificado', icon: Shield, desc: 'PFX digital' },
-  { id: 3, label: 'Tipos DTE', icon: FileText, desc: 'Documentos a emitir' },
-  { id: 4, label: 'CAFs', icon: BookOpen, desc: 'Folios SII' },
-  { id: 5, label: 'Ambiente', icon: Server, desc: 'Certificación / Producción' },
+  { id: 1, label: 'Empresa',    icon: Building2,    desc: 'Datos tributarios' },
+  { id: 2, label: 'Certificado',icon: Shield,       desc: 'PFX digital' },
+  { id: 3, label: 'Tipos DTE',  icon: FileText,     desc: 'Documentos a emitir' },
+  { id: 4, label: 'CAFs',       icon: BookOpen,     desc: 'Folios SII' },
+  { id: 5, label: 'Ambiente',   icon: Server,       desc: 'Certificación / Producción' },
   { id: 6, label: 'DTE Prueba', icon: CheckCircle2, desc: 'Factura de test' },
 ];
 
-const TIPOS_DTE = [
+const TIPOS_DTE_DEFAULT: ConfigState['tiposDte'] = [
   { codigo: 33, nombre: 'Factura Electrónica Afecta', activo: true },
   { codigo: 34, nombre: 'Factura Electrónica Exenta', activo: true },
-  { codigo: 39, nombre: 'Boleta Electrónica', activo: true },
-  { codigo: 52, nombre: 'Guía de Despacho Electrónica', activo: false },
+  { codigo: 39, nombre: 'Boleta Electrónica',         activo: true },
+  { codigo: 52, nombre: 'Guía de Despacho Electrónica',activo: false },
   { codigo: 61, nombre: 'Nota de Crédito Electrónica', activo: true },
-  { codigo: 56, nombre: 'Nota de Débito Electrónica', activo: false },
+  { codigo: 56, nombre: 'Nota de Débito Electrónica',  activo: false },
 ];
 
-function Paso1() {
-  const [rut, setRut] = useState('76.123.456-7');
+const DTE_NOMBRES: Record<number, string> = {
+  33: 'Factura Afecta', 34: 'Factura Exenta', 39: 'Boleta', 52: 'Guía Despacho', 61: 'Nota Crédito', 56: 'Nota Débito',
+};
+
+// ── Paso 1: Datos empresa ──────────────────────────────────────────────────
+
+function Paso1({ state, onChange }: { state: EmpresaState; onChange: (s: EmpresaState) => void }) {
+  const set = (k: keyof EmpresaState, v: string) => onChange({ ...state, [k]: v });
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">RUT de la empresa</label>
-        <Input value={rut} onChange={e => setRut(formatRut(e.target.value))} placeholder="76.123.456-7" className="font-mono" />
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Razón social</label>
-        <Input defaultValue="Constructora Los Andes SpA" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">RUT empresa</label>
+          <Input value={state.rut} onChange={e => set('rut', e.target.value)} placeholder="76.123.456-7" className="font-mono" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Razón Social *</label>
+          <Input value={state.razonSocial} onChange={e => set('razonSocial', e.target.value)} placeholder="Empresa S.A." />
+        </div>
       </div>
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-muted-foreground">Giro (según SII)</label>
-        <Input defaultValue="Construcción de edificios y obras de ingeniería" />
+        <Input value={state.giro} onChange={e => set('giro', e.target.value)} placeholder="Construcción de edificios" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Dirección</label>
-          <Input defaultValue="Av. Balmaceda 1234, Of. 301" />
+          <Input value={state.direccion} onChange={e => set('direccion', e.target.value)} placeholder="Av. Principal 123" />
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Comuna</label>
-          <Input defaultValue="La Serena" />
+          <Input value={state.comuna} onChange={e => set('comuna', e.target.value)} placeholder="Santiago" />
         </div>
       </div>
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Actividad económica (código SII)</label>
-        <Input defaultValue="41001 — Construcción de edificios residenciales" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Ciudad</label>
+          <Input value={state.ciudad} onChange={e => set('ciudad', e.target.value)} placeholder="Santiago" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Código actividad SII</label>
+          <Input value={state.actividadEconomica} onChange={e => set('actividadEconomica', e.target.value)} placeholder="41001 — Construcción" />
+        </div>
       </div>
     </div>
   );
 }
 
-function Paso2() {
-  const [uploaded, setUploaded] = useState(false);
+// ── Paso 2: Certificado PFX ────────────────────────────────────────────────
+
+function Paso2({ state, onChange }: { state: PfxState; onChange: (s: PfxState) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="space-y-4">
-      <div className={cn(
-        'rounded-lg border-2 border-dashed p-8 text-center transition-colors cursor-pointer',
-        uploaded ? 'border-success/50 bg-success/5' : 'border-border hover:border-primary/50 hover:bg-muted/30'
-      )} onClick={() => setUploaded(true)}>
-        {uploaded ? (
+      <div
+        className={cn(
+          'rounded-lg border-2 border-dashed p-8 text-center transition-colors cursor-pointer',
+          state.uploaded ? 'border-success/50 bg-success/5' : 'border-border hover:border-primary/50 hover:bg-muted/30'
+        )}
+        onClick={() => { if (!state.uploaded) inputRef.current?.click(); }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pfx"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) onChange({ file: f, uploaded: false });
+          }}
+        />
+        {state.file ? (
           <div className="space-y-2">
-            <CheckCircle2 className="h-8 w-8 text-success mx-auto" />
-            <p className="text-sm font-medium">certificado_empresa.pfx</p>
-            <p className="text-xs text-muted-foreground">Válido hasta 31/12/2027</p>
-            <Badge variant="success">Certificado válido</Badge>
+            <Shield className="h-8 w-8 text-primary mx-auto" />
+            <p className="text-sm font-medium">{state.file.name}</p>
+            <p className="text-xs text-muted-foreground">{(state.file.size / 1024).toFixed(1)} KB</p>
+            {state.uploaded && <Badge variant="success">Subido correctamente</Badge>}
+            {!state.uploaded && (
+              <p className="text-xs text-muted-foreground">Clic en <strong>Siguiente</strong> para subirlo</p>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -90,12 +133,6 @@ function Paso2() {
           </div>
         )}
       </div>
-      {uploaded && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Contraseña del certificado</label>
-          <Input type="password" placeholder="••••••••" />
-        </div>
-      )}
       <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
         El certificado digital PFX es emitido por el SII o una CA autorizada (E-Cert, GlobalSign, etc.). Lo necesitas para firmar electrónicamente cada DTE.
       </div>
@@ -103,15 +140,16 @@ function Paso2() {
   );
 }
 
-function Paso3() {
-  const [tipos, setTipos] = useState(TIPOS_DTE);
+// ── Paso 3: Tipos DTE ──────────────────────────────────────────────────────
+
+function Paso3({ state, onChange }: { state: ConfigState; onChange: (s: ConfigState) => void }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">Selecciona los tipos de DTE que emitirás. Puedes cambiar esto después.</p>
-      {tipos.map(t => (
+      {state.tiposDte.map(t => (
         <div
           key={t.codigo}
-          onClick={() => setTipos(prev => prev.map(p => p.codigo === t.codigo ? { ...p, activo: !p.activo } : p))}
+          onClick={() => onChange({ ...state, tiposDte: state.tiposDte.map(p => p.codigo === t.codigo ? { ...p, activo: !p.activo } : p) })}
           className={cn(
             'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
             t.activo ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/30'
@@ -130,53 +168,52 @@ function Paso3() {
   );
 }
 
-function Paso4() {
+// ── Paso 4: CAFs ───────────────────────────────────────────────────────────
+
+function Paso4({ cafs, config }: { cafs: CafState[]; config: ConfigState }) {
+  const tiposActivos = config.tiposDte.filter(t => t.activo);
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Los CAF (Código de Autorización de Folios) los obtienes desde el portal SII. Sube uno por cada tipo de DTE habilitado.</p>
-      {[
-        { tipo: 33, nombre: 'Factura Afecta', cargado: true, folios: '1001-2000' },
-        { tipo: 34, nombre: 'Factura Exenta', cargado: false },
-        { tipo: 39, nombre: 'Boleta', cargado: true, folios: '1001-5000' },
-        { tipo: 61, nombre: 'Nota de Crédito', cargado: false },
-      ].map(caf => (
-        <div key={caf.tipo} className={cn('flex items-center gap-3 rounded-lg border p-3', caf.cargado ? 'border-success/30' : 'border-border')}>
-          <div className={cn('flex h-8 w-8 items-center justify-center rounded-md text-xs font-bold flex-shrink-0', caf.cargado ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground')}>
-            {caf.tipo}
+      <p className="text-sm text-muted-foreground">Los CAF los obtienes desde el portal SII. Sube uno por cada tipo de DTE habilitado. El archivo se guarda en el servidor.</p>
+      {tiposActivos.map(t => {
+        const caf = cafs.find(c => c.tipoDte === t.codigo);
+        return (
+          <div key={t.codigo} className={cn('flex items-center gap-3 rounded-lg border p-3', caf ? 'border-success/30 bg-success/5' : 'border-border')}>
+            <div className={cn('flex h-8 w-8 items-center justify-center rounded-md text-xs font-bold flex-shrink-0', caf ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground')}>
+              {t.codigo}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">DTE {t.codigo} — {t.nombre}</p>
+              {caf
+                ? <p className="text-xs text-success">Folios {caf.desde}–{caf.hasta} ✓</p>
+                : <p className="text-xs text-muted-foreground">Sin CAF — sube el XML en el paso "Siguiente"</p>
+              }
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">DTE {caf.tipo} — {caf.nombre}</p>
-            {caf.cargado
-              ? <p className="text-xs text-success">Folios {caf.folios} ✓</p>
-              : <p className="text-xs text-muted-foreground">Sin CAF cargado</p>
-            }
-          </div>
-          <Button variant={caf.cargado ? 'outline' : 'default'} size="sm" className="h-7 text-xs flex-shrink-0">
-            {caf.cargado ? 'Reemplazar' : 'Cargar CAF'}
-          </Button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function Paso5() {
-  const [ambiente, setAmbiente] = useState<'certificacion' | 'produccion'>('certificacion');
+// ── Paso 5: Ambiente ───────────────────────────────────────────────────────
+
+function Paso5({ state, onChange }: { state: ConfigState; onChange: (s: ConfigState) => void }) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">El ambiente determina si los DTEs se envían al SII real o al servidor de pruebas (maullin).</p>
+      <p className="text-sm text-muted-foreground">El ambiente determina si los DTEs se envían al SII real o al servidor de pruebas.</p>
       <div className="grid grid-cols-2 gap-3">
         {[
           { id: 'certificacion' as const, label: 'Certificación', sub: 'servidor maullin.sii.cl', tag: 'Recomendado para pruebas', color: 'border-warning/50 bg-warning/5' },
-          { id: 'produccion' as const, label: 'Producción', sub: 'servidor palena.sii.cl', tag: 'DTEs legales reales', color: 'border-destructive/50 bg-destructive/5' },
+          { id: 'produccion' as const,    label: 'Producción',    sub: 'servidor palena.sii.cl',  tag: 'DTEs tributarios reales', color: 'border-destructive/50 bg-destructive/5' },
         ].map(a => (
           <div
             key={a.id}
-            onClick={() => setAmbiente(a.id)}
-            className={cn('rounded-lg border-2 p-4 cursor-pointer transition-all', ambiente === a.id ? a.color + ' border-opacity-100' : 'border-border hover:bg-muted/30')}
+            onClick={() => onChange({ ...state, ambiente: a.id })}
+            className={cn('rounded-lg border-2 p-4 cursor-pointer transition-all', state.ambiente === a.id ? a.color : 'border-border hover:bg-muted/30')}
           >
             <div className="flex items-center gap-2 mb-2">
-              <div className={cn('h-4 w-4 rounded-full border-2 flex-shrink-0', ambiente === a.id ? (a.id === 'certificacion' ? 'border-warning bg-warning' : 'border-destructive bg-destructive') : 'border-border')} />
+              <div className={cn('h-4 w-4 rounded-full border-2 flex-shrink-0', state.ambiente === a.id ? (a.id === 'certificacion' ? 'border-warning bg-warning' : 'border-destructive bg-destructive') : 'border-border')} />
               <span className="font-semibold text-sm">{a.label}</span>
             </div>
             <p className="text-xs text-muted-foreground">{a.sub}</p>
@@ -184,72 +221,151 @@ function Paso5() {
           </div>
         ))}
       </div>
-      {ambiente === 'produccion' && (
+      {state.ambiente === 'produccion' && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
           <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-destructive">En producción los DTEs emitidos son documentos tributarios legales con validez ante el SII. No puedes anular una factura sin emitir una nota de crédito.</p>
+          <p className="text-xs text-destructive">En producción los DTEs son documentos tributarios legales con validez ante el SII.</p>
         </div>
       )}
     </div>
   );
 }
 
-function Paso6() {
-  const [estado, setEstado] = useState<'idle' | 'enviando' | 'ok' | 'error'>('idle');
+// ── Paso 6: DTE de prueba ──────────────────────────────────────────────────
+
+function Paso6({ onComplete }: { onComplete: () => void }) {
+  const [estado, setEstado] = useState<'idle' | 'enviando' | 'ok'>('idle');
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Emite una factura de prueba al SII para verificar que tu configuración es correcta.</p>
+      <p className="text-sm text-muted-foreground">Emite una factura de prueba para verificar la configuración. La comunicación real con el SII estará disponible con LibreDTE en producción.</p>
       <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Factura de prueba</p>
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <span className="text-muted-foreground">Emisor</span>
-          <span>Constructora Los Andes SpA</span>
-          <span className="text-muted-foreground">Receptor</span>
-          <span>76.354.771-K (SII Pruebas)</span>
-          <span className="text-muted-foreground">Monto neto</span>
-          <span>$ 1.000</span>
-          <span className="text-muted-foreground">IVA 19%</span>
-          <span>$ 190</span>
-          <span className="text-muted-foreground font-medium">Total</span>
-          <span className="font-bold">$ 1.190</span>
+          <span className="text-muted-foreground">Receptor</span><span>76.354.771-K (SII Pruebas)</span>
+          <span className="text-muted-foreground">Monto neto</span><span>$ 1.000</span>
+          <span className="text-muted-foreground font-medium">Total</span><span className="font-bold">$ 1.190</span>
         </div>
       </div>
-
       {estado === 'idle' && (
-        <Button className="w-full" onClick={() => { setEstado('enviando'); setTimeout(() => setEstado('ok'), 1800); }}>
-          Emitir factura de prueba
+        <Button className="w-full" onClick={() => { setEstado('enviando'); setTimeout(() => { setEstado('ok'); onComplete(); }, 1500); }}>
+          Finalizar configuración
         </Button>
       )}
-
       {estado === 'enviando' && (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-center">
-          <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2" />
-          <p className="text-sm">Enviando al SII (maullin)...</p>
+          <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto mb-2" />
+          <p className="text-sm">Guardando configuración...</p>
         </div>
       )}
-
       {estado === 'ok' && (
         <div className="space-y-3">
           <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center space-y-1">
             <CheckCircle2 className="h-8 w-8 text-success mx-auto" />
-            <p className="font-semibold text-success">DTE aceptado por SII</p>
-            <p className="text-xs text-muted-foreground">Folio #1 · Track ID: 12345678</p>
+            <p className="font-semibold text-success">¡Configuración completada!</p>
+            <p className="text-xs text-muted-foreground">Tu empresa está lista para operar</p>
           </div>
-          <Link href="/dashboard">
-            <Button className="w-full">Ir al Dashboard →</Button>
-          </Link>
+          <Link href="/dashboard"><Button className="w-full">Ir al Dashboard →</Button></Link>
         </div>
       )}
     </div>
   );
 }
 
-const COMPONENTES = [Paso1, Paso2, Paso3, Paso4, Paso5, Paso6];
+// ── OnboardingPage (orquestador) ──────────────────────────────────────────
 
 export default function OnboardingPage() {
   const [paso, setPaso] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const cafInputRef = useRef<HTMLInputElement>(null);
+
+  const [empresa, setEmpresa] = useState<EmpresaState>({
+    rut: '', razonSocial: '', giro: '', direccion: '', comuna: '', ciudad: '', actividadEconomica: '',
+  });
+  const [pfx, setPfx] = useState<PfxState>({ file: null, uploaded: false });
+  const [config, setConfig] = useState<ConfigState>({ tiposDte: TIPOS_DTE_DEFAULT, ambiente: 'certificacion' });
+  const [cafs, setCafs] = useState<CafState[]>([]);
+
   const progreso = ((paso + 1) / PASOS.length) * 100;
-  const PasoActual = COMPONENTES[paso];
+
+  // ── Guardar al avanzar (paso específico) ─────────────────────────────
+  async function handleSiguiente() {
+    setSaving(true);
+    try {
+      if (paso === 0) {
+        // Paso 1 → guardar datos empresa
+        const res = await fetch('/api/empresa', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(empresa),
+        });
+        if (!res.ok) { toast.error('Error al guardar datos de empresa'); return; }
+        toast.success('Datos guardados');
+      }
+
+      if (paso === 1 && pfx.file && !pfx.uploaded) {
+        // Paso 2 → subir PFX
+        const fd = new FormData();
+        fd.append('file', pfx.file);
+        const res = await fetch('/api/empresa/pfx', { method: 'POST', body: fd });
+        if (!res.ok) { toast.error('Error al subir el certificado'); return; }
+        setPfx(p => ({ ...p, uploaded: true }));
+        toast.success('Certificado subido');
+      }
+
+      if (paso === 4) {
+        // Paso 5 → guardar ambiente
+        await fetch('/api/empresa', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campo: 'ambiente', valor: config.ambiente }),
+        });
+      }
+
+      setPaso(p => Math.min(PASOS.length - 1, p + 1));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function uploadCaf(file: File) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/empresa/caf', { method: 'POST', body: fd });
+    const data = await res.json() as { ok?: boolean; tipoDte?: number; desde?: number; hasta?: number; error?: string };
+    if (!res.ok || !data.ok) { toast.error(data.error ?? 'Error al procesar CAF'); return; }
+    const nombre = DTE_NOMBRES[data.tipoDte!] ?? `DTE ${data.tipoDte}`;
+    setCafs(prev => {
+      const next = prev.filter(c => c.tipoDte !== data.tipoDte);
+      return [...next, { tipoDte: data.tipoDte!, desde: data.desde!, hasta: data.hasta!, nombre }];
+    });
+    toast.success(`CAF DTE ${data.tipoDte} registrado (folios ${data.desde}–${data.hasta})`);
+  }
+
+  async function handleOnboardingCompleto() {
+    await fetch('/api/empresa', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campo: 'onboardingCompleto', valor: '1' }),
+    });
+  }
+
+  const PasoActual = [
+    <Paso1 key={0} state={empresa} onChange={setEmpresa} />,
+    <Paso2 key={1} state={pfx} onChange={setPfx} />,
+    <Paso3 key={2} state={config} onChange={setConfig} />,
+    <div key={3}>
+      <Paso4 cafs={cafs} config={config} />
+      {/* Upload CAF inline en este paso */}
+      <div className="mt-4 space-y-2">
+        <input ref={cafInputRef} type="file" accept=".xml" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCaf(f); }} />
+        <Button variant="outline" size="sm" className="h-8 text-xs w-full" onClick={() => cafInputRef.current?.click()}>
+          <Upload className="mr-1.5 h-3.5 w-3.5" />Subir CAF XML
+        </Button>
+      </div>
+    </div>,
+    <Paso5 key={4} state={config} onChange={setConfig} />,
+    <Paso6 key={5} onComplete={handleOnboardingCompleto} />,
+  ];
 
   return (
     <div className="min-h-screen bg-background flex items-start justify-center p-4 pt-12">
@@ -271,23 +387,18 @@ export default function OnboardingPage() {
           {PASOS.map((p, i) => (
             <React.Fragment key={p.id}>
               <button
-                onClick={() => i <= paso && setPaso(i)}
+                onClick={() => i < paso && setPaso(i)}
                 className={cn(
                   'flex items-center gap-2 rounded-lg px-3 py-2 text-xs whitespace-nowrap transition-colors flex-shrink-0',
                   i === paso ? 'bg-primary text-primary-foreground'
-                  : i < paso ? 'bg-success/15 text-success cursor-pointer hover:bg-success/25'
-                  : 'bg-muted text-muted-foreground cursor-default'
+                    : i < paso ? 'bg-success/15 text-success cursor-pointer hover:bg-success/25'
+                    : 'bg-muted text-muted-foreground cursor-default'
                 )}
               >
-                {i < paso
-                  ? <Check className="h-3.5 w-3.5" />
-                  : <p.icon className="h-3.5 w-3.5" />
-                }
+                {i < paso ? <Check className="h-3.5 w-3.5" /> : <p.icon className="h-3.5 w-3.5" />}
                 {p.label}
               </button>
-              {i < PASOS.length - 1 && (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              )}
+              {i < PASOS.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
             </React.Fragment>
           ))}
         </div>
@@ -305,23 +416,22 @@ export default function OnboardingPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <PasoActual />
-          </CardContent>
+          <CardContent>{PasoActual[paso]}</CardContent>
         </Card>
 
         {/* Nav */}
-        <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => setPaso(p => Math.max(0, p - 1))} disabled={paso === 0} className="h-9">
-            <ChevronLeft className="h-4 w-4 mr-1" />Anterior
-          </Button>
-          <span className="text-xs text-muted-foreground">{paso + 1} / {PASOS.length}</span>
-          {paso < PASOS.length - 1 && (
-            <Button onClick={() => setPaso(p => Math.min(PASOS.length - 1, p + 1))} className="h-9">
+        {paso < PASOS.length - 1 && (
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={() => setPaso(p => Math.max(0, p - 1))} disabled={paso === 0} className="h-9">
+              <ChevronLeft className="h-4 w-4 mr-1" />Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground">{paso + 1} / {PASOS.length}</span>
+            <Button onClick={handleSiguiente} disabled={saving} className="h-9">
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
               Siguiente<ChevronRight className="h-4 w-4 ml-1" />
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
