@@ -8,9 +8,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useEmpleados, useBhe } from '@/lib/data/rrhh';
 import { NuevoEmpleadoDialog } from '@/components/payroll/NuevoEmpleadoDialog';
+import { ImportNominaDialog } from '@/components/payroll/ImportNominaDialog';
 import { formatCLP } from '@/lib/utils/clp';
 import { formatDate } from '@/lib/utils/dates';
-import { Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 const CONTRATO_LABEL = {
@@ -23,6 +24,7 @@ export default function PayrollPage() {
   const empleados = useEmpleados();
   const bhes = useBhe();
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -32,12 +34,16 @@ export default function PayrollPage() {
           <p className="text-sm text-muted-foreground">Empleados, liquidaciones y boletas de honorarios</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setImportOpen(true)}>
+            <Upload className="h-3.5 w-3.5 mr-1" />Importar nómina
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" asChild><Link href="/payroll/bhe"><Plus className="h-3.5 w-3.5 mr-1" />Nueva BHE</Link></Button>
           <Button size="sm" className="h-8 text-xs" onClick={() => setNuevoOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" />Nuevo empleado</Button>
         </div>
       </div>
 
       <NuevoEmpleadoDialog open={nuevoOpen} onOpenChange={setNuevoOpen} />
+      <ImportNominaDialog open={importOpen} onOpenChange={setImportOpen} />
 
       {/* Estado nómina */}
       <div className="grid grid-cols-3 gap-3">
